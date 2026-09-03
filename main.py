@@ -1,15 +1,17 @@
 import os
 import uuid
-from fastapi import FastAPI, Request, Header, HTTPException, BackgroundTasks
+import threading
+from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration, ApiClient, MessagingApi, MessagingApiBlob,
-    PushMessageRequest, TextMessage, ImageMessage, ShowLoadingAnimationRequest
+    PushMessageRequest, ReplyMessageRequest, TextMessage, ImageMessage,
+    ShowLoadingAnimationRequest
 )
-from linebot.v3.webhooks import MessageEvent, VideoMessageContent
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, VideoMessageContent
 
 from analyzer import analyze_golf_swing
 
@@ -22,14 +24,14 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # 從環境變數讀取金鑰與公開網址
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET", "")
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN", "")
-SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "") # Zeabur 產生的公開網址
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "") # Render 的公開網址 (例如 https://xxx.onrender.com)
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
 @app.get("/")
 def index():
-    return {"status": "Golf Swing Analyzer is running on Zeabur!"}
+    return {"status": "Golf Swing Analyzer is running!"}
 
 @app.post("/callback")
 async def callback(request: Request, x_line_signature: str = Header(None)):
@@ -52,7 +54,7 @@ def process_video_task(message_id: str, user_id: str):
         try:
             # 1. 顯示轉圈思考動畫
             msg_api.show_loading_animation(
-                ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=20)
+                ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=30)
             )
 
             # 2. 下載影片檔案
@@ -63,8 +65,8 @@ def process_video_task(message_id: str, user_id: str):
             # 3. 呼叫骨架分析
             res = analyze_golf_swing(raw_video, out_image_path)
 
-            if res["success"]:
-                public_img_url = f"{SERVER_BASE_URL}/static/{img_filename}"
+            if res.get("success"):
+                public_img_url = f"{SERVER_BASE_URL.rstrip('/')}/static/{img_filename}"
                 report = (
                     f"⛳ 揮桿骨架分析完成！\n"
                     f"━━━━━━━━━━━━\n"
@@ -103,7 +105,26 @@ def process_video_task(message_id: str, user_id: str):
             if os.path.exists(raw_video):
                 os.remove(raw_video)
 
+# 處理文字訊息 (傳 hi 就會回覆)
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_text(event: MessageEvent):
+    with ApiClient(configuration) as api_client:
+        msg_api = MessagingApi(api_client)
+        msg_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[
+                    TextMessage(
+                        text="你好！請直接傳送一段 3~5 秒的揮桿影片，我會為你擷取 P1/P4/P7 關鍵姿勢並標註骨架！"
+                    )
+                ]
+            )
+        )
+
+# 處理影片訊息 (使用背景 Thread 避免 LINE Webhook 連線逾時)
 @handler.add(MessageEvent, message=VideoMessageContent)
-def handle_video(event: MessageEvent, background_tasks: BackgroundTasks):
+def handle_video(event: MessageEvent):
     user_id = event.source.user_id
-    background_tasks.add_task(process_video_task, event.message.id, user_id)
+    message_id = event.message.id
+    # 在背景 thread 執行耗時的 MediaPipe 影像分析
+    threading.Thread(target=process_video_task, args=(message_id, user_id), daemon=True).start()
