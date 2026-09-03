@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+test_swing.mp4
+test_result.jpg
