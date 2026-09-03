@@ -2,8 +2,12 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import os
+import gc
 
 mp_pose = mp.solutions.pose
+
+# 設定最大高度（骨架偵測 640px 精度極高，但記憶體消耗大幅降低至 1/8）
+MAX_HEIGHT = 640
 
 # 12條主要肢體與軀幹連線 (排除面部雜點，使揮桿骨架更清晰)
 GOLF_CONNECTIONS = [
@@ -82,6 +86,13 @@ def analyze_golf_swing(video_path: str, output_image_path: str) -> dict:
         if not ret:
             break
             
+        # 1. 強制等比例縮小影格尺寸 (大幅節省記憶體並加速分析)
+        h, w = frame.shape[:2]
+        if h > MAX_HEIGHT:
+            scale = MAX_HEIGHT / float(h)
+            new_w = int(w * scale)
+            frame = cv2.resize(frame, (new_w, MAX_HEIGHT), interpolation=cv2.INTER_AREA)
+
         frames.append(frame)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = pose.process(rgb)
@@ -230,14 +241,20 @@ def analyze_golf_swing(video_path: str, output_image_path: str) -> dict:
         cv2.rectangle(target_frame, (20, 20), (320, 80), (0, 0, 0), -1)
         cv2.putText(target_frame, label, (30, 62), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0, 255, 0), 2, cv2.LINE_AA)
         
-        # 等比例縮放至高度 720px，長寬比保護 (不拉伸、不變形)
+        # 保持原始等比例縮放至 target_h (長寬比保護)
         h, w, _ = target_frame.shape
-        new_w = int(w * (720.0 / h))
-        resized = cv2.resize(target_frame, (new_w, 720), interpolation=cv2.INTER_AREA)
+        new_w = int(w * (MAX_HEIGHT / float(h)))
+        resized = cv2.resize(target_frame, (new_w, MAX_HEIGHT), interpolation=cv2.INTER_AREA)
         annotated_frames.append(resized)
         
     combined_img = np.hstack(annotated_frames)
     cv2.imwrite(output_image_path, combined_img)
+    
+    # 釋放記憶體並手動觸發垃圾回收
+    del frames
+    del wrist_data
+    del annotated_frames
+    gc.collect()
     
     return {
         "success": True,
