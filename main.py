@@ -34,12 +34,23 @@ def index():
     return {"status": "Golf Swing Analyzer is running!"}
 
 @app.post("/callback")
-async def callback(request: Request, x_line_signature: str = Header(None)):
+async def callback(request: Request):
+    # 抓取簽章
+    signature = request.headers.get("x-line-signature") or request.headers.get("X-Line-Signature", "")
     body = await request.body()
+    body_str = body.decode("utf-8")
+
+    if not signature:
+        print("❌ 缺少 X-Line-Signature Header")
+        raise HTTPException(status_code=400, detail="Missing X-Line-Signature header")
+
     try:
-        handler.handle(body.decode("utf-8"), x_line_signature)
+        handler.handle(body_str, signature)
     except InvalidSignatureError:
+        print("❌ 簽章驗證失敗 (Invalid Signature)")
+        print(f"當前 CHANNEL_SECRET: '{CHANNEL_SECRET}'")
         raise HTTPException(status_code=400, detail="Invalid signature")
+
     return "OK"
 
 def process_video_task(message_id: str, user_id: str):
