@@ -16,7 +16,7 @@ let isLiffInitialized = false;
 let currentLiffId = "2011445978-6xeS4R70";
 let currentLiffUserId = "";
 let latestAnalysisData = null;
-let serverBaseUrl = "";
+let serverBaseUrl = "https://golf-assistant.onrender.com";
 
 // DOM Elements
 const videoInput = document.getElementById("video-input");
@@ -36,9 +36,9 @@ async function initSystem() {
     navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
   }
 
-  // 嘗試讀取後端設定
+  // 嘗試讀取後端動態設定
   try {
-    const cfgRes = await fetch('/api/config');
+    const cfgRes = await fetch(`${serverBaseUrl}/api/config`);
     if (cfgRes.ok) {
       const cfg = await cfgRes.json();
       currentLiffId = cfg.liffId || currentLiffId;

@@ -38,8 +38,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # 從環境變數讀取金鑰與網址設定
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET", "")
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN", "")
-# 若 Render 提供 RENDER_EXTERNAL_URL 則優先使用
-SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", os.getenv("RENDER_EXTERNAL_URL", ""))
+# 預設使用 Render 伺服器網址
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", os.getenv("RENDER_EXTERNAL_URL", "https://golf-assistant.onrender.com"))
 LIFF_ID = os.getenv("LIFF_ID", "2011445978-6xeS4R70")
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
@@ -49,7 +49,7 @@ handler = WebhookHandler(CHANNEL_SECRET)
 # 格式: { user_id: { "report_id": ..., "score": 88, "spine": 32, "turn": 89, "img_filename": ..., "created_at": ... } }
 user_reports: Dict[str, Dict[str, Any]] = {}
 latest_global_report: Optional[Dict[str, Any]] = None
-latest_server_host: str = ""
+latest_server_host: str = SERVER_BASE_URL
 
 def get_app_url() -> str:
     """取得 PWA / LIFF 網頁專屬連結"""
