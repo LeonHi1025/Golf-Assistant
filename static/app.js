@@ -12,7 +12,7 @@ const POSE_CONNECTIONS = [
 ];
 
 let poseLandmarker = null;
-let isLiffReady = false;
+let isLiffInitialized = false;
 let latestAnalysisData = null;
 
 // DOM Elements
@@ -50,12 +50,11 @@ async function initSystem() {
   liffId = urlParams.get('liffId') || liffId;
 
   // 初始化 LIFF
-  if (window.liff && liffId) {
+  if (window.liff && liffId && liffId !== "YOUR_LIFF_ID") {
     try {
       await liff.init({ liffId });
-      if (liff.isLoggedIn()) {
-        isLiffReady = true;
-      }
+      isLiffInitialized = true;
+      console.log("✅ LIFF 初始化成功, isInClient:", liff.isInClient());
     } catch (e) {
       console.warn("LIFF 初始化異常:", e);
     }
@@ -438,34 +437,33 @@ function movingAverage(arr, windowSize) {
 // 傳送分析報告回 LINE
 window.shareToLine = async function (isAuto = false) {
   if (!latestAnalysisData) {
-    if (!isAuto) alert("尚未完成分析！");
+    if (!isAuto) alert("尚未完成分析！請先選取揮桿影片。");
     return;
   }
 
   const triggerMsg = `查看本次揮桿診斷報告 [得分:${latestAnalysisData.score}|P1脊椎:${latestAnalysisData.spineAngle}°|P4轉體:${latestAnalysisData.shoulderTurn}°|P7釋放:優異]`;
+  console.log("觸發發送報告:", triggerMsg, "isAuto:", isAuto, "isLiffInitialized:", isLiffInitialized);
 
-  if (window.liff) {
-    if (!liff.isLoggedIn()) {
-      if (!isAuto) liff.login();
-      return;
-    }
-
-    try {
-      await liff.sendMessages([{ type: "text", text: triggerMsg }]);
-      btnShareLine.innerText = "✅ 診斷已發送至 LINE！(點此關閉)";
-      btnShareLine.style.background = "#059669";
-      btnShareLine.onclick = () => liff.closeWindow();
-      console.log("✅ LIFF sendMessages 成功發送");
-      return;
-    } catch (err) {
-      console.warn("LIFF sendMessages 失敗:", err);
-      if (!isAuto) {
-        alert("⚠️ 無法直接在聊天室發話。\n可能原因：請確認 LINE Developers 後台 LIFF 設定的 Scopes 已勾選「chat_message.write」權限！");
+  // 1. 若在 LINE LIFF App 環境且初始化成功
+  if (window.liff && isLiffInitialized) {
+    if (liff.isLoggedIn() && liff.isInClient()) {
+      try {
+        await liff.sendMessages([{ type: "text", text: triggerMsg }]);
+        btnShareLine.innerText = "✅ 診斷已發送至 LINE！(點此關閉)";
+        btnShareLine.style.background = "#059669";
+        btnShareLine.onclick = () => liff.closeWindow();
+        console.log("✅ LIFF sendMessages 成功發送！");
+        return;
+      } catch (err) {
+        console.warn("LIFF sendMessages 失敗:", err);
+        if (!isAuto) {
+          alert("⚠️ 無法在聊天室直接發話。\n常見原因：請確認 LINE Developers 後台 LIFF 設定的 Scopes 已勾選「chat_message.write」！\n系統將為您改用直連發送。");
+        }
       }
     }
   }
 
-  // Fallback: 如果無法直接呼叫 liff.sendMessages
+  // 2. Fallback: 外部瀏覽器或無 LIFF 權限時，直接透過 LINE URL Scheme 傳送
   if (!isAuto) {
     const encodedMsg = encodeURIComponent(triggerMsg);
     window.location.href = `https://line.me/R/msg/text/?${encodedMsg}`;
@@ -483,5 +481,8 @@ window.resetApp = function () {
   progressFill.style.width = "0%";
   progressPct.innerText = "0%";
 };
+
+// 綁定按鈕事件監聽
+btnShareLine?.addEventListener("click", () => window.shareToLine(false));
 
 initSystem();
