@@ -216,7 +216,7 @@ def build_entry_card() -> dict:
 from fastapi.responses import RedirectResponse, Response
 
 def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> dict:
-    """生成 100% 免費的 Reply 專業教練診斷書 (純文字指標卡片)"""
+    """生成 100% 免費的 Reply 專業教練診斷書 (簡潔白底黑字卡片)"""
     grade = "Tour Pro 級" if score >= 90 else ("Semi-Pro 級" if score >= 85 else "業餘進階級")
 
     return {
@@ -225,22 +225,17 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> di
         "body": {
             "type": "box",
             "layout": "vertical",
+            "backgroundColor": "#FFFFFF",
+            "paddingAll": "20px",
             "contents": [
                 {
                     "type": "text",
-                    "text": "⛳ 揮桿診斷處方箋",
+                    "text": f"⛳ 動作評定：{grade} ({score}分)",
                     "weight": "bold",
-                    "size": "xl",
-                    "color": "#FFD54F"
+                    "size": "lg",
+                    "color": "#111111"
                 },
-                {
-                    "type": "text",
-                    "text": f"AI 教練動作評定：{grade} ({score}分)",
-                    "size": "sm",
-                    "color": "#00E676",
-                    "weight": "bold",
-                    "margin": "xs"
-                },
+                {"type": "separator", "margin": "md", "color": "#E5E7EB"},
                 {
                     "type": "box",
                     "layout": "vertical",
@@ -251,66 +246,64 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> di
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "P1 準備站姿", "color": "#9E9E9E", "size": "sm", "flex": 3},
-                                {"type": "text", "text": f"脊椎傾角 {spine}° (標準穩定)", "color": "#FFFFFF", "size": "sm", "weight": "bold", "flex": 5}
+                                {"type": "text", "text": "• P1 準備站姿", "color": "#4B5563", "size": "sm", "flex": 4},
+                                {"type": "text", "text": f"脊椎傾角 {spine}° (標準穩定)", "color": "#111111", "size": "sm", "weight": "bold", "flex": 6}
                             ]
                         },
                         {
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "P4 上桿頂點", "color": "#9E9E9E", "size": "sm", "flex": 3},
-                                {"type": "text", "text": f"旋轉幅度 {turn}° (蓄力充足)", "color": "#FFFFFF", "size": "sm", "weight": "bold", "flex": 5}
+                                {"type": "text", "text": "• P4 上桿頂點", "color": "#4B5563", "size": "sm", "flex": 4},
+                                {"type": "text", "text": f"旋轉幅度 {turn}° (蓄力充足)", "color": "#111111", "size": "sm", "weight": "bold", "flex": 6}
                             ]
                         },
                         {
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "P7 擊球瞬間", "color": "#9E9E9E", "size": "sm", "flex": 3},
-                                {"type": "text", "text": "核心完全釋放・加速流暢", "color": "#00E676", "size": "sm", "weight": "bold", "flex": 5}
+                                {"type": "text", "text": "• P7 擊球瞬間", "color": "#4B5563", "size": "sm", "flex": 4},
+                                {"type": "text", "text": "核心完全釋放・加速流暢", "color": "#059669", "size": "sm", "weight": "bold", "flex": 6}
                             ]
                         }
                     ]
                 },
-                {"type": "separator", "margin": "lg", "color": "#2E483D"},
+                {"type": "separator", "margin": "lg", "color": "#E5E7EB"},
                 {
                     "type": "text",
-                    "text": "💡 今日專屬教練建議：",
+                    "text": "💡 本次建議：",
                     "weight": "bold",
                     "size": "sm",
-                    "color": "#FFD54F",
+                    "color": "#111111",
                     "margin": "md"
                 },
                 {
                     "type": "text",
                     "text": "1. 保持下桿時頭部穩定，避免重心過早前移。\n2. 擊球瞬間保持左臂延展，釋放桿頭速度更具穿透力！",
                     "size": "xs",
-                    "color": "#CFD8DC",
+                    "color": "#374151",
                     "wrap": True,
                     "margin": "xs"
                 }
-            ],
-            "backgroundColor": "#132a21",
-            "paddingAll": "20px"
+            ]
         },
         "footer": {
             "type": "box",
             "layout": "vertical",
+            "backgroundColor": "#FFFFFF",
+            "paddingAll": "16px",
             "contents": [
                 {
                     "type": "button",
                     "style": "primary",
-                    "color": "#00E676",
+                    "color": "#2D3748",
                     "action": {
                         "type": "uri",
                         "label": "🏌️ 再次揮桿分析",
                         "uri": get_app_url()
                     }
                 }
-            ],
-            "backgroundColor": "#0d1f18",
-            "paddingAll": "16px"
+            ]
         }
     }
 

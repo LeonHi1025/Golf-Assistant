@@ -5,29 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Golf Swing AI - 智慧揮桿分析儀</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0d1f18">
+  <meta name="theme-color" content="#F4F5F7">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     :root {
-      --bg-primary: #0a110e;
-      --bg-card: rgba(18, 30, 25, 0.75);
-      --bg-card-border: rgba(46, 204, 113, 0.2);
-      --accent-green: #00E676;
-      --accent-glow: rgba(0, 230, 118, 0.35);
-      --accent-gold: #FFD54F;
-      --text-main: #FFFFFF;
-      --text-muted: #9E9E9E;
+      --bg-primary: #F4F5F7;
+      --bg-card: rgba(255, 255, 255, 0.95);
+      --bg-card-border: rgba(0, 0, 0, 0.08);
+      --accent-dark: #09090B;
+      --accent-gray: #52525B;
+      --text-main: #18181B;
+      --text-muted: #71717A;
       --font-family: 'Outfit', 'Noto Sans TC', sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body {
-      background: radial-gradient(circle at top center, #132a21 0%, var(--bg-primary) 70%);
+      background-color: var(--bg-primary);
       color: var(--text-main);
       font-family: var(--font-family);
       min-height: 100vh;
@@ -36,6 +35,18 @@
       align-items: center;
       padding: 16px;
       overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Dynamic Animated Dots Background */
+    #bg-dots-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      pointer-events: none;
     }
 
     .container {
@@ -44,82 +55,90 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+      z-index: 1;
     }
 
     /* Header */
     header {
       text-align: center;
-      padding: 12px 0 6px 0;
+      padding: 16px 0 8px 0;
     }
     .badge-pwa {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 12px;
-      background: rgba(0, 230, 118, 0.12);
-      border: 1px solid rgba(0, 230, 118, 0.3);
+      padding: 4px 14px;
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.1);
       border-radius: 20px;
       font-size: 12px;
-      color: var(--accent-green);
+      color: var(--accent-gray);
       font-weight: 600;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
     }
     .badge-dot {
       width: 6px;
       height: 6px;
-      background: var(--accent-green);
+      background: #09090B;
       border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent-green);
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.25);
     }
     h1 {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #FFFFFF 40%, var(--accent-green) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #09090B;
     }
     .subtitle {
       font-size: 13px;
       color: var(--text-muted);
-      margin-top: 4px;
+      margin-top: 6px;
+      letter-spacing: 0.2px;
     }
 
     /* Card Box */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--bg-card-border);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-radius: 18px;
-      padding: 20px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      padding: 22px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
     }
 
     /* Upload Zone */
     .upload-zone {
-      border: 2px dashed rgba(0, 230, 118, 0.35);
+      border: 1.5px dashed rgba(0, 0, 0, 0.2);
       border-radius: 14px;
-      padding: 28px 16px;
+      padding: 32px 16px;
       text-align: center;
       cursor: pointer;
       transition: all 0.25s ease;
-      background: rgba(0, 230, 118, 0.03);
+      background: rgba(0, 0, 0, 0.02);
     }
     .upload-zone:active, .upload-zone.dragover {
-      border-color: var(--accent-green);
-      background: rgba(0, 230, 118, 0.08);
+      border-color: #09090B;
+      background: rgba(0, 0, 0, 0.05);
       transform: scale(0.99);
     }
     .upload-icon {
-      font-size: 40px;
-      margin-bottom: 8px;
-      filter: drop-shadow(0 0 12px var(--accent-glow));
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 12px;
+      color: #09090B;
+      transition: transform 0.2s ease;
+    }
+    .upload-zone:hover .upload-icon, .upload-zone:active .upload-icon {
+      transform: translateY(-2px);
     }
     .upload-title {
       font-size: 16px;
       font-weight: 700;
-      margin-bottom: 4px;
+      color: #09090B;
+      margin-bottom: 6px;
     }
     .upload-hint {
       font-size: 12px;
@@ -134,36 +153,39 @@
       gap: 8px;
       width: 100%;
       padding: 14px;
-      background: linear-gradient(135deg, #00E676 0%, #00B0FF 100%);
-      color: #05140D;
+      background: #09090B;
+      color: #FFFFFF;
       font-size: 15px;
       font-weight: 800;
       border: none;
       border-radius: 12px;
       cursor: pointer;
-      box-shadow: 0 6px 20px rgba(0, 230, 118, 0.3);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
       transition: all 0.2s ease;
     }
     .btn:active {
       transform: scale(0.98);
-      box-shadow: 0 2px 10px rgba(0, 230, 118, 0.2);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text-main);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: none;
+      background: #FFFFFF;
+      color: #18181B;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    .btn-secondary:active {
+      background: #F4F5F7;
     }
 
     /* Progress & Status */
     #progress-container {
       display: none;
-      margin-top: 14px;
+      margin-top: 16px;
     }
     .progress-bar-bg {
       width: 100%;
-      height: 8px;
-      background: rgba(255, 255, 255, 0.1);
+      height: 6px;
+      background: rgba(0, 0, 0, 0.08);
       border-radius: 6px;
       overflow: hidden;
       margin-top: 8px;
@@ -171,13 +193,13 @@
     .progress-bar-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, var(--accent-green), #00B0FF);
+      background: #09090B;
       transition: width 0.1s linear;
       border-radius: 6px;
     }
     .status-text {
       font-size: 13px;
-      color: var(--accent-green);
+      color: #09090B;
       font-weight: 600;
       display: flex;
       justify-content: space-between;
@@ -195,55 +217,56 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: linear-gradient(135deg, rgba(0, 230, 118, 0.15), rgba(0, 176, 255, 0.15));
-      border: 1px solid rgba(0, 230, 118, 0.4);
+      background: rgba(0, 0, 0, 0.03);
+      border: 1px solid rgba(0, 0, 0, 0.08);
       padding: 16px 20px;
       border-radius: 14px;
     }
     .score-number {
       font-size: 38px;
       font-weight: 900;
-      color: var(--accent-green);
+      color: #09090B;
       line-height: 1;
-      text-shadow: 0 0 16px var(--accent-glow);
     }
     .score-grade {
       font-size: 14px;
       font-weight: 700;
-      color: var(--accent-gold);
+      color: var(--accent-gray);
       margin-top: 2px;
     }
 
-    /* 3-Pose Cards Horizontal Scroll / Grid */
+    /* 3-Pose Cards Grid */
     .pose-grid {
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
     .pose-card {
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #FFFFFF;
+      border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 12px;
       overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
     }
     .pose-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.04);
+      padding: 8px 14px;
+      background: rgba(0, 0, 0, 0.02);
       font-size: 13px;
       font-weight: 700;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     }
     .pose-tag {
-      color: var(--accent-green);
+      color: #09090B;
     }
     .pose-canvas-container {
       width: 100%;
       height: 180px;
       display: flex;
       justify-content: center;
-      background: #000;
+      background: #111113;
     }
     .pose-canvas-container canvas {
       max-width: 100%;
@@ -251,15 +274,15 @@
       object-fit: contain;
     }
     .pose-metrics {
-      padding: 8px 12px;
+      padding: 8px 14px;
       font-size: 12px;
       color: var(--text-muted);
       display: flex;
       justify-content: space-between;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
     }
     .pose-metrics span strong {
-      color: #FFF;
+      color: #09090B;
     }
 
     /* Hidden video & processing canvases */
@@ -269,6 +292,9 @@
   </style>
 </head>
 <body>
+  <!-- Dynamic Grey Dots Canvas -->
+  <canvas id="bg-dots-canvas"></canvas>
+
   <div class="container">
     <header>
       <div class="badge-pwa">
@@ -276,16 +302,22 @@
         <span>Edge AI 晶片端即時運算</span>
       </div>
       <h1>GOLF SWING AI</h1>
-      <p class="subtitle">3 秒揮桿影片自動擷取 P1 / P4 / P7 骨架與評分</p>
+      <p class="subtitle">影片自動擷取 P1 / P4 / P7 骨架與評分</p>
     </header>
 
     <!-- Upload Section -->
     <div class="card" id="upload-card">
       <input type="file" id="video-input" accept="video/*" style="display:none">
       <div class="upload-zone" id="drop-zone" onclick="document.getElementById('video-input').click()">
-        <div class="upload-icon">🏌️‍♂️</div>
+        <div class="upload-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
         <div class="upload-title">點擊選取揮桿影片</div>
-        <div class="upload-hint">支援 3~5 秒影片，直接使用手機晶片運算</div>
+        <div class="upload-hint">Tips:影片於6秒者為佳</div>
       </div>
 
       <div id="progress-container">
@@ -306,7 +338,7 @@
           <div style="font-size: 12px; color: var(--text-muted);">整體動作評分</div>
           <div class="score-grade" id="score-grade">Pro Swing 級</div>
         </div>
-        <div class="score-number" id="score-val">88<span style="font-size: 18px; color: #fff;">分</span></div>
+        <div class="score-number" id="score-val">88<span style="font-size: 18px; color: #71717A;">分</span></div>
       </div>
 
       <div class="pose-grid">
@@ -371,6 +403,77 @@
   <canvas id="process-canvas"></canvas>
   <canvas id="export-canvas"></canvas>
 
-  <script type="module" src="app.js?v=20260905_2"></script>
+  <!-- Dynamic Grey Dots Background Script -->
+  <script>
+    (function () {
+      const canvas = document.getElementById('bg-dots-canvas');
+      const ctx = canvas.getContext('2d');
+      let dots = [];
+      let width = 0, height = 0;
+
+      function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        initDots();
+      }
+
+      function initDots() {
+        dots = [];
+        const count = Math.floor((width * height) / 16000); // 密度減半，更加簡約清爽
+        for (let i = 0; i < count; i++) {
+          dots.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: (Math.random() - 0.5) * 1.8, // 動態加速
+            vy: (Math.random() - 0.5) * 1.8, // 動態加速
+            radius: Math.random() * 5.5 + 3.5, // 球球大顆 (3.5px ~ 9px)
+            alpha: Math.random() * 0.35 + 0.2
+          });
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let i = 0; i < dots.length; i++) {
+          const d = dots[i];
+          d.x += d.vx;
+          d.y += d.vy;
+
+          if (d.x < 0) d.x = width;
+          if (d.x > width) d.x = 0;
+          if (d.y < 0) d.y = height;
+          if (d.y > height) d.y = 0;
+
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(130, 138, 150, ${d.alpha})`;
+          ctx.fill();
+
+          // 微光動態連線
+          for (let j = i + 1; j < dots.length; j++) {
+            const d2 = dots[j];
+            const dist = Math.hypot(d.x - d2.x, d.y - d2.y);
+            if (dist < 100) {
+              ctx.beginPath();
+              ctx.moveTo(d.x, d.y);
+              ctx.lineTo(d2.x, d2.y);
+              ctx.strokeStyle = `rgba(140, 148, 160, ${(1 - dist / 100) * 0.22})`;
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+            }
+          }
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+      draw();
+    })();
+  </script>
+
+  <script type="module" src="app.js?v=20260905_4"></script>
 </body>
 </html>
