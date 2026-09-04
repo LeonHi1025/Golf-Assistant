@@ -1,15 +1,24 @@
-const CACHE_NAME = 'golf-pwa-v1';
+const CACHE_NAME = 'golf-pwa-v2';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(clients.claim());
+  e.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((k) => {
+          if (k !== CACHE_NAME) return caches.delete(k);
+        })
+      );
+    }).then(() => clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (e) => {
+  // 優先從網路載入最新資源
   e.respondWith(
-    caches.match(e.request).then((res) => res || fetch(e.request))
+    fetch(e.request).catch(() => caches.match(e.request))
   );
 });

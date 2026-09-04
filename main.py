@@ -213,14 +213,14 @@ def build_entry_card() -> dict:
         }
     }
 
-def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> dict:
+def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89, image_url: Optional[str] = None) -> dict:
     """生成 100% 免費的 Reply 專業教練診斷書"""
     grade = "Tour Pro 級" if score >= 90 else ("Semi-Pro 級" if score >= 85 else "業餘進階級")
 
-    return {
+    card = {
         "type": "bubble",
         "size": "mega",
-        "hero": {
+        "body": {
             "type": "box",
             "layout": "vertical",
             "contents": [
@@ -238,15 +238,7 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> di
                     "color": "#00E676",
                     "weight": "bold",
                     "margin": "xs"
-                }
-            ],
-            "backgroundColor": "#0d1f18",
-            "paddingAll": "20px"
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "contents": [
+                },
                 {
                     "type": "box",
                     "layout": "vertical",
@@ -320,6 +312,22 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> di
         }
     }
 
+    # 若有照片網址，嵌入為卡片頂部 Hero 圖
+    if image_url:
+        card["hero"] = {
+            "type": "image",
+            "url": image_url,
+            "size": "full",
+            "aspectRatio": "16:9",
+            "aspectMode": "cover",
+            "action": {
+                "type": "uri",
+                "uri": image_url
+            }
+        }
+
+    return card
+
 @app.get("/")
 def index():
     """首頁自動轉跳至 PWA 揮桿分析儀"""
@@ -380,8 +388,8 @@ def handle_text(event: MessageEvent):
                 )
             )
             
-            # 2. 揮桿診斷處方箋 Flex Card
-            flex_json = build_diagnosis_card(score=score, spine=spine, turn=turn)
+            # 2. 揮桿診斷處方箋 Flex Card (頂部帶骨架預覽)
+            flex_json = build_diagnosis_card(score=score, spine=spine, turn=turn, image_url=img_url)
             reply_messages.append(
                 FlexMessage(
                     alt_text="⛳ 您的專屬高爾夫揮桿診斷處方箋已出爐！",
