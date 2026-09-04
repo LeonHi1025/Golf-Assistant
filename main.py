@@ -1,32 +1,55 @@
 import os
 import re
 import json
+import time
+import base64
+import uuid
+from typing import Dict, Any, Optional
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration, ApiClient, MessagingApi,
-    ReplyMessageRequest, FlexMessage, FlexContainer
+    ReplyMessageRequest, FlexMessage, FlexContainer, ImageMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, VideoMessageContent
 
 app = FastAPI(title="Golf Swing AI Assistant (Edge PWA)")
 
-# 靜態檔案服務 (包含 PWA 網頁、Service Worker 與圖標)
-os.makedirs("static", exist_ok=True)
+# 啟用 CORS 讓 GitHub Pages 與 LIFF 瀏覽器能呼叫 API 上傳報告
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 靜態檔案服務 (包含 PWA 網頁、Service Worker 與分析截圖)
+REPORTS_DIR = os.path.join("static", "reports")
+os.makedirs(REPORTS_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 從環境變數讀取金鑰與網址設定
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET", "")
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN", "")
-SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "https://leonhi1025.github.io/Golf-Assistant")
+# 若 Render 提供 RENDER_EXTERNAL_URL 則優先使用
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", os.getenv("RENDER_EXTERNAL_URL", ""))
 LIFF_ID = os.getenv("LIFF_ID", "2011445978-6xeS4R70")
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
+
+# 記憶體快取使用者最近的分析報告
+# 格式: { user_id: { "report_id": ..., "score": 88, "spine": 32, "turn": 89, "img_filename": ..., "created_at": ... } }
+user_reports: Dict[str, Dict[str, Any]] = {}
+latest_global_report: Optional[Dict[str, Any]] = None
+latest_server_host: str = ""
 
 def get_app_url() -> str:
     """取得 PWA / LIFF 網頁專屬連結"""
@@ -36,13 +59,89 @@ def get_app_url() -> str:
         return f"{SERVER_BASE_URL.rstrip('/')}/static/index.html"
     return "/static/index.html"
 
+class ReportUploadPayload(BaseModel):
+    userId: Optional[str] = ""
+    score: int = 88
+    spineAngle: int = 32
+    shoulderTurn: int = 89
+    imageBase64: str
+
 @app.get("/api/config")
-def get_config():
-    """提供前端動態讀取 LIFF_ID 與設定，避免寫死在 JS"""
+def get_config(request: Request):
+    """提供前端動態讀取 LIFF_ID 與設定"""
+    global latest_server_host
+    base_url = SERVER_BASE_URL or str(request.base_url).rstrip("/")
+    if base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+    latest_server_host = base_url
+
     return {
         "liffId": LIFF_ID,
-        "serverBaseUrl": SERVER_BASE_URL
+        "serverBaseUrl": base_url
     }
+
+@app.post("/api/upload_report")
+async def upload_report(payload: ReportUploadPayload, request: Request):
+    """接收前端 Edge AI 產生的 3 影格骨架合成照片與動作指標"""
+    global latest_global_report, latest_server_host
+    
+    # 紀錄最新伺服器網址供 LINE 圖片下載
+    base_url = SERVER_BASE_URL or str(request.base_url).rstrip("/")
+    if base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+    latest_server_host = base_url
+
+    try:
+        # 解碼 Base64 圖片
+        img_str = re.sub(r"^data:image/.+;base64,", "", payload.imageBase64)
+        img_bytes = base64.b64decode(img_str)
+        
+        report_id = f"report_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+        filename = f"{report_id}.jpg"
+        filepath = os.path.join(REPORTS_DIR, filename)
+
+        with open(filepath, "wb") as f:
+            f.write(img_bytes)
+
+        report_data = {
+            "report_id": report_id,
+            "filename": filename,
+            "score": payload.score,
+            "spine": payload.spineAngle,
+            "turn": payload.shoulderTurn,
+            "created_at": time.time()
+        }
+
+        user_id = payload.userId.strip() if payload.userId else ""
+        if user_id:
+            user_reports[user_id] = report_data
+        
+        latest_global_report = report_data
+
+        # 定期清理舊圖片 (保留最新的 40 張)
+        cleanup_old_reports()
+
+        img_url = f"{latest_server_host}/static/reports/{filename}"
+        print(f"✅ 成功儲存骨架分析照片: {img_url} (使用者: {user_id or '匿名'})")
+        return {"status": "ok", "reportId": report_id, "imageUrl": img_url}
+
+    except Exception as e:
+        print(f"❌ 儲存骨架報告失敗: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def cleanup_old_reports():
+    """自動清理超過 40 張的舊報告照片，節省硬碟空間"""
+    try:
+        files = [os.path.join(REPORTS_DIR, f) for f in os.listdir(REPORTS_DIR) if f.endswith(".jpg")]
+        if len(files) > 40:
+            files.sort(key=os.path.getmtime)
+            for old_file in files[:-30]:
+                try:
+                    os.remove(old_file)
+                except Exception:
+                    pass
+    except Exception as e:
+        print("清理暫存報告異常:", e)
 
 def build_entry_card() -> dict:
     """建立揮桿分析儀入口卡片"""
@@ -114,17 +213,9 @@ def build_entry_card() -> dict:
         }
     }
 
-def build_diagnosis_card(user_msg: str) -> dict:
-    """解析使用者由 LIFF 發出的揮桿報告，並生成 100% 免費的 Reply 專業教練診斷書"""
-    score_match = re.search(r"得分:(\d+)", user_msg)
-    spine_match = re.search(r"P1脊椎:(\d+)", user_msg)
-    turn_match = re.search(r"P4轉體:(\d+)", user_msg)
-
-    score = score_match.group(1) if score_match else "88"
-    spine = spine_match.group(1) if spine_match else "32"
-    turn = turn_match.group(1) if turn_match else "89"
-
-    grade = "Tour Pro 級" if int(score) >= 90 else ("Semi-Pro 級" if int(score) >= 85 else "業餘進階級")
+def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> dict:
+    """生成 100% 免費的 Reply 專業教練診斷書"""
+    grade = "Tour Pro 級" if score >= 90 else ("Semi-Pro 級" if score >= 85 else "業餘進階級")
 
     return {
         "type": "bubble",
@@ -236,6 +327,12 @@ def index():
 
 @app.post("/callback")
 async def callback(request: Request):
+    global latest_server_host
+    base_url = SERVER_BASE_URL or str(request.base_url).rstrip("/")
+    if base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
+    latest_server_host = base_url
+
     signature = request.headers.get("x-line-signature") or request.headers.get("X-Line-Signature", "")
     body = await request.body()
     body_str = body.decode("utf-8")
@@ -248,7 +345,6 @@ async def callback(request: Request):
         handler.handle(body_str, signature)
     except InvalidSignatureError:
         print("❌ 簽章驗證失敗 (Invalid Signature)")
-        print(f"當前 CHANNEL_SECRET: '{CHANNEL_SECRET}'")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     return "OK"
@@ -257,26 +353,67 @@ async def callback(request: Request):
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text(event: MessageEvent):
     user_text = event.message.text.strip()
+    user_id = getattr(event.source, "user_id", "") or ""
     
-    # 判斷是否為使用者從 LIFF 網頁自動發出的診斷關鍵字
+    # 判斷是否為使用者回覆「查看本次揮桿診斷報告」
     if "查看本次揮桿診斷報告" in user_text:
-        flex_json = build_diagnosis_card(user_text)
-        alt_text = "⛳ 您的專屬高爾夫揮桿診斷處方箋已出爐！"
+        # 尋找此使用者最近上傳的分析報告 (或全域最新報告)
+        report = user_reports.get(user_id) or latest_global_report
+        
+        reply_messages = []
+        
+        if report and report.get("filename"):
+            score = report.get("score", 88)
+            spine = report.get("spine", 32)
+            turn = report.get("turn", 89)
+            filename = report.get("filename")
+            
+            # 組成 HTTPS 圖片網址
+            base_url = SERVER_BASE_URL or latest_server_host or "https://leonhi1025.github.io/Golf-Assistant"
+            img_url = f"{base_url.rstrip('/')}/static/reports/{filename}"
+            
+            # 1. 骨架分析照片
+            reply_messages.append(
+                ImageMessage(
+                    original_content_url=img_url,
+                    preview_image_url=img_url
+                )
+            )
+            
+            # 2. 揮桿診斷處方箋 Flex Card
+            flex_json = build_diagnosis_card(score=score, spine=spine, turn=turn)
+            reply_messages.append(
+                FlexMessage(
+                    alt_text="⛳ 您的專屬高爾夫揮桿診斷處方箋已出爐！",
+                    contents=FlexContainer.from_json(json.dumps(flex_json))
+                )
+            )
+        else:
+            # 若無先前分析記錄，發送預設處方箋
+            flex_json = build_diagnosis_card()
+            reply_messages.append(
+                FlexMessage(
+                    alt_text="⛳ 您的專屬高爾夫揮桿診斷處方箋已出爐！",
+                    contents=FlexContainer.from_json(json.dumps(flex_json))
+                )
+            )
+
     else:
+        # 一般文字訊息，引導使用者開啟分析儀
         flex_json = build_entry_card()
-        alt_text = "🏌️ 高爾夫 AI 揮桿分析儀已就緒，請點擊打開！"
+        reply_messages = [
+            FlexMessage(
+                alt_text="🏌️ 高爾夫 AI 揮桿分析儀已就緒，請點擊打開！",
+                contents=FlexContainer.from_json(json.dumps(flex_json))
+            )
+        ]
 
     with ApiClient(configuration) as api_client:
         msg_api = MessagingApi(api_client)
         msg_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[
-                    FlexMessage(
-                        alt_text=alt_text,
-                        contents=FlexContainer.from_json(json.dumps(flex_json))
-                    )
-                ]
+                messages=reply_messages
             )
         )
 

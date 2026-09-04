@@ -13,7 +13,9 @@ const POSE_CONNECTIONS = [
 
 let poseLandmarker = null;
 let isLiffInitialized = false;
+let currentLiffUserId = "";
 let latestAnalysisData = null;
+let serverBaseUrl = "";
 
 // DOM Elements
 const videoInput = document.getElementById("video-input");
@@ -40,6 +42,7 @@ async function initSystem() {
     if (cfgRes.ok) {
       const cfg = await cfgRes.json();
       liffId = cfg.liffId || liffId;
+      serverBaseUrl = cfg.serverBaseUrl || "";
     }
   } catch (err) {
     console.log("無法獲取後端設定，使用預設 LIFF ID:", err);
@@ -47,6 +50,7 @@ async function initSystem() {
 
   const urlParams = new URLSearchParams(window.location.search);
   liffId = urlParams.get('liffId') || liffId;
+  serverBaseUrl = urlParams.get('server') || serverBaseUrl;
 
   // 初始化 LIFF
   if (window.liff && liffId && liffId !== "YOUR_LIFF_ID") {
@@ -54,6 +58,18 @@ async function initSystem() {
       await liff.init({ liffId });
       isLiffInitialized = true;
       console.log("✅ LIFF 初始化成功, isInClient:", liff.isInClient());
+      
+      // 取得使用者 ID (若有登入或在客戶端)
+      try {
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile();
+          currentLiffUserId = profile.userId || "";
+          console.log("✅ 取得 LINE 使用者 ID:", currentLiffUserId);
+        }
+      } catch (pErr) {
+        const decoded = liff.getDecodedIDToken?.();
+        if (decoded?.sub) currentLiffUserId = decoded.sub;
+      }
     } catch (e) {
       console.warn("LIFF 初始化異常:", e);
     }
@@ -175,9 +191,6 @@ async function handleVideoFile(file) {
     // 繪製至離屏 Canvas
     ctx.drawImage(hiddenVideo, 0, 0, targetW, targetH);
     
-    // 取得當前影格 ImageData
-    const imgData = ctx.getImageData(0, 0, targetW, targetH);
-    
     // 儲存當前影格圖像供後續輸出
     const frameBitmap = await createImageBitmap(processCanvas);
     frames.push(frameBitmap);
@@ -244,7 +257,7 @@ async function handleVideoFile(file) {
 
   progressFill.style.width = "100%";
   progressPct.innerText = "100%";
-  statusMsg.innerText = "正在計算 P1/P4/P7 關鍵姿勢與角度...";
+  statusMsg.innerText = "正在計算 P1/P4/P7 關鍵姿勢與生成診斷圖...";
 
   // 4. 計算揮桿關鍵影格
   const totalFrames = frames.length;
@@ -307,10 +320,10 @@ async function handleVideoFile(file) {
     }
   }
 
-  // 5. 渲染 P1, P4, P7 至對應 Canvas
-  renderPoseToCanvas("p1-canvas", frames[p1Idx], wristData[p1Idx].landmarks, "P1: Address");
-  renderPoseToCanvas("p4-canvas", frames[p4Idx], wristData[p4Idx].landmarks, "P4: Top");
-  renderPoseToCanvas("p7-canvas", frames[p7Idx], wristData[p7Idx].landmarks, "P7: Impact");
+  // 5. 渲染 P1, P4, P7 至各別預覽 Canvas
+  renderPoseToCanvas("p1-canvas", frames[p1Idx], wristData[p1Idx].landmarks);
+  renderPoseToCanvas("p4-canvas", frames[p4Idx], wristData[p4Idx].landmarks);
+  renderPoseToCanvas("p7-canvas", frames[p7Idx], wristData[p7Idx].landmarks);
 
   // 計算角度指標
   const spineAngle = calcSpineAngle(wristData[p1Idx].landmarks);
@@ -326,14 +339,26 @@ async function handleVideoFile(file) {
   document.getElementById("score-val").innerHTML = `${score}<span style="font-size: 18px; color: #fff;">分</span>`;
   document.getElementById("score-grade").innerText = score >= 90 ? "Tour Pro 級" : (score >= 85 ? "Semi-Pro 級" : "進步空間良好");
 
+  // 6. 產生 3 影格骨架合成圖並上傳至伺服器
+  const imageBase64 = createCompositeReportImage(
+    frames[p1Idx], wristData[p1Idx].landmarks,
+    frames[p4Idx], wristData[p4Idx].landmarks,
+    frames[p7Idx], wristData[p7Idx].landmarks,
+    spineAngle, shoulderTurn, score
+  );
+
   latestAnalysisData = {
     p1: p1Idx,
     p4: p4Idx,
     p7: p7Idx,
     spineAngle,
     shoulderTurn,
-    score
+    score,
+    imageBase64
   };
+
+  // 背景非同步上傳骨架照片
+  uploadReportData(latestAnalysisData);
 
   // 顯示結果
   uploadCard.style.display = "none";
@@ -346,8 +371,170 @@ async function handleVideoFile(file) {
   }, 400);
 }
 
-// 繪製骨架與標籤到 Canvas
-function renderPoseToCanvas(canvasId, frameBitmap, landmarks, label) {
+// 7. 產生專業 3 連格骨架診斷合成圖 (P1 / P4 / P7)
+function createCompositeReportImage(frame1, lm1, frame4, lm4, frame7, lm7, spineAngle, shoulderTurn, score) {
+  const exportCanvas = document.getElementById("export-canvas");
+  const ctx = exportCanvas.getContext("2d");
+
+  const panelW = 360;
+  const panelH = 640;
+  const headerH = 70;
+  const footerH = 50;
+  const totalW = panelW * 3;
+  const totalH = panelH + headerH + footerH;
+
+  exportCanvas.width = totalW;
+  exportCanvas.height = totalH;
+
+  // 背景暗色填滿
+  ctx.fillStyle = "#0A110E";
+  ctx.fillRect(0, 0, totalW, totalH);
+
+  // 頂部橫幅
+  const grad = ctx.createLinearGradient(0, 0, totalW, 0);
+  grad.addColorStop(0, "#0D1F18");
+  grad.addColorStop(0.5, "#16382B");
+  grad.addColorStop(1, "#0D1F18");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, totalW, headerH);
+
+  // 頂部標題與總評
+  ctx.fillStyle = "#00E676";
+  ctx.font = "bold 26px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("🏌️ GOLF SWING AI 揮桿骨架分析", 24, 44);
+
+  const gradeText = score >= 90 ? "Tour Pro 級" : (score >= 85 ? "Semi-Pro 級" : "進階學習級");
+  ctx.fillStyle = "#FFD54F";
+  ctx.font = "bold 22px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(`動作評分：${score}分 (${gradeText})`, totalW - 24, 44);
+
+  // 繪製三個關鍵影格面板
+  const panels = [
+    { frame: frame1, lm: lm1, title: "P1 預備站姿 (Address)", metric: `脊椎傾角：${spineAngle}° (標準穩定)` },
+    { frame: frame4, lm: lm4, title: "P4 上桿頂點 (Top)", metric: `轉體旋轉：${shoulderTurn}° (蓄力充足)` },
+    { frame: frame7, lm: lm7, title: "P7 擊球瞬間 (Impact)", metric: "核心完全釋放・加速流暢" }
+  ];
+
+  panels.forEach((p, i) => {
+    const startX = i * panelW;
+    const startY = headerH;
+
+    // 繪製背景視訊影格
+    ctx.drawImage(p.frame, startX, startY, panelW, panelH);
+
+    // 繪製骨架線與關節
+    if (p.lm) {
+      const pts = {};
+      for (let idx = 11; idx <= 28; idx++) {
+        const lm = p.lm[idx];
+        if (lm && (lm.visibility || 1.0) >= 0.4) {
+          const cx = startX + lm.x * panelW;
+          const cy = startY + lm.y * panelH;
+          pts[idx] = [cx, cy];
+
+          // 關節點 (亮黃色帶陰影)
+          ctx.beginPath();
+          ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+          ctx.fillStyle = "#FFEB3B";
+          ctx.shadowColor = "#000000";
+          ctx.shadowBlur = 4;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      // 骨架連線 (螢光綠)
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#00E676";
+      ctx.lineCap = "round";
+
+      for (const [start, end] of POSE_CONNECTIONS) {
+        if (pts[start] && pts[end]) {
+          ctx.beginPath();
+          ctx.moveTo(pts[start][0], pts[start][1]);
+          ctx.lineTo(pts[end][0], pts[end][1]);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // 面板頂部標籤透明背板
+    ctx.fillStyle = "rgba(10, 20, 15, 0.75)";
+    ctx.fillRect(startX + 12, startY + 12, panelW - 24, 34);
+    ctx.strokeStyle = "rgba(0, 230, 118, 0.4)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(startX + 12, startY + 12, panelW - 24, 34);
+
+    // 面板標題文字
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 15px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(p.title, startX + panelW / 2, startY + 34);
+
+    // 面板底部指標透明背板
+    ctx.fillStyle = "rgba(10, 20, 15, 0.85)";
+    ctx.fillRect(startX + 12, startY + panelH - 44, panelW - 24, 32);
+
+    ctx.fillStyle = "#00E676";
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillText(p.metric, startX + panelW / 2, startY + panelH - 23);
+
+    // 面板分割線
+    if (i > 0) {
+      ctx.strokeStyle = "rgba(0, 230, 118, 0.25)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(startX, headerH);
+      ctx.lineTo(startX, headerH + panelH);
+      ctx.stroke();
+    }
+  });
+
+  // 底部版權/診斷標籤
+  ctx.fillStyle = "#0A110E";
+  ctx.fillRect(0, totalH - footerH, totalW, footerH);
+  ctx.fillStyle = "#81C784";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Edge AI 邊緣晶片即時運算診斷・高爾夫智慧揮桿助理", totalW / 2, totalH - 18);
+
+  return exportCanvas.toDataURL("image/jpeg", 0.88);
+}
+
+// 8. 上傳分析報告與合成照片至後端
+async function uploadReportData(data) {
+  const targetUrl = serverBaseUrl ? `${serverBaseUrl.rstrip?.('/') || serverBaseUrl}/api/upload_report` : '/api/upload_report';
+  
+  try {
+    const payload = {
+      userId: currentLiffUserId || "",
+      score: data.score,
+      spineAngle: data.spineAngle,
+      shoulderTurn: data.shoulderTurn,
+      imageBase64: data.imageBase64
+    };
+
+    const res = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const ret = await res.json();
+      console.log("✅ 報告與骨架照片已成功同步至後端:", ret);
+    } else {
+      console.warn("後端上傳回應非 200:", res.status);
+    }
+  } catch (err) {
+    console.warn("上傳分析報告異常 (將使用本機展示):", err);
+  }
+}
+
+// 繪製骨架到預覽 Canvas
+function renderPoseToCanvas(canvasId, frameBitmap, landmarks) {
   const canvas = document.getElementById(canvasId);
   const ctx = canvas.getContext("2d");
 
@@ -433,41 +620,39 @@ function movingAverage(arr, windowSize) {
   return result;
 }
 
-// 傳送分析報告回 LINE
+// 9. 傳送分析報告回 LINE (乾淨純文字觸發，由官方 Bot 回傳骨架照片與處方箋)
 window.shareToLine = async function (isAuto = false) {
   if (!latestAnalysisData) {
     if (!isAuto) alert("尚未完成分析！請先選取揮桿影片。");
     return;
   }
 
-  const triggerMsg = `查看本次揮桿診斷報告 [得分:${latestAnalysisData.score}|P1脊椎:${latestAnalysisData.spineAngle}°|P4轉體:${latestAnalysisData.shoulderTurn}°|P7釋放:優異]`;
-  console.log("觸發發送報告:", triggerMsg, "isAuto:", isAuto, "isLiffInitialized:", isLiffInitialized);
+  // 遵照使用者需求：簡潔純文字「查看本次揮桿診斷報告」
+  const triggerMsg = "查看本次揮桿診斷報告";
+  console.log("觸發發送訊息:", triggerMsg, "isAuto:", isAuto, "isLiffInitialized:", isLiffInitialized);
 
   // 1. 若在 LINE LIFF App 環境且初始化成功
   if (window.liff && isLiffInitialized) {
     if (liff.isLoggedIn() && liff.isInClient()) {
       try {
         await liff.sendMessages([{ type: "text", text: triggerMsg }]);
-        btnShareLine.innerText = "✅ 診斷已發送至 LINE！(點此關閉)";
+        btnShareLine.innerText = "✅ 骨架照片與診斷已傳送！(點此關閉)";
         btnShareLine.style.background = "#059669";
         btnShareLine.onclick = () => liff.closeWindow();
         console.log("✅ LIFF sendMessages 成功發送！");
         return;
       } catch (err) {
         console.warn("LIFF sendMessages 失敗:", err);
-        if (!isAuto) {
-          alert("⚠️ 無法在聊天室直接發話。\n常見原因：請確認 LINE Developers 後台 LIFF 設定的 Scopes 已勾選「chat_message.write」！\n系統將為您改用直連發送。");
-        }
       }
     }
   }
 
-  // 2. Fallback: 外部瀏覽器或無 LIFF 權限時，直接透過 LINE URL Scheme 傳送
+  // 2. Fallback: 外部瀏覽器或無 LIFF 權限時，透過 LINE URL Scheme 傳送
   if (!isAuto) {
     const encodedMsg = encodeURIComponent(triggerMsg);
     window.location.href = `https://line.me/R/msg/text/?${encodedMsg}`;
   } else {
-    btnShareLine.innerText = "📊 點此一鍵傳送診斷報告至 LINE";
+    btnShareLine.innerText = "📊 點此一鍵傳送「查看本次揮桿診斷報告」至 LINE";
   }
 };
 
