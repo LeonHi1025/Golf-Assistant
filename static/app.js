@@ -417,27 +417,25 @@ function movingAverage(arr, windowSize) {
   return result;
 }
 
-// 傳送分析報告回 LINE
+// 傳送分析報告回 LINE 並關閉視窗
 window.shareToLine = async function () {
-  if (!window.liff || !liff.isLoggedIn() || !latestAnalysisData) {
-    alert("尚未在 LINE 環境中開啟");
+  if (!latestAnalysisData) {
+    alert("尚未完成分析！");
     return;
   }
 
-  const report = `⛳【高爾夫揮桿 AI 分析報告】\n` +
-                 `━━━━━━━━━━━━\n` +
-                 `⭐ 總評分：${latestAnalysisData.score} 分\n` +
-                 `• P1 預備站姿：第 ${latestAnalysisData.p1} 幀 (脊椎傾角 ${latestAnalysisData.spineAngle}°)\n` +
-                 `• P4 上桿頂點：第 ${latestAnalysisData.p4} 幀 (肩膀旋轉量 ${latestAnalysisData.shoulderTurn}°)\n` +
-                 `• P7 擊球瞬間：第 ${latestAnalysisData.p7} 幀 (核心完全釋放)\n` +
-                 `━━━━━━━━━━━━\n` +
-                 `由 Edge AI 即時晶片分析產出`;
+  const triggerMsg = `查看本次揮桿診斷報告 [得分:${latestAnalysisData.score}|P1脊椎:${latestAnalysisData.spineAngle}°|P4轉體:${latestAnalysisData.shoulderTurn}°|P7釋放:優異]`;
 
-  try {
-    await liff.sendMessages([{ type: "text", text: report }]);
-    liff.closeWindow();
-  } catch (err) {
-    alert("傳送失敗: " + err);
+  if (window.liff && liff.isLoggedIn()) {
+    try {
+      await liff.sendMessages([{ type: "text", text: triggerMsg }]);
+      liff.closeWindow();
+    } catch (err) {
+      console.warn("LIFF 自動發話失敗:", err);
+      alert("無法發送訊息，請確認已在 LINE 聊天室環境中開啟！");
+    }
+  } else {
+    alert("目前在一般瀏覽器預覽。\n在 LINE 內開啟時，點擊此按鈕將自動幫您發送「查看本次揮桿診斷報告」並由 AI 教練在聊天室秒回專業診斷！");
   }
 };
 
