@@ -13,6 +13,7 @@ const POSE_CONNECTIONS = [
 
 let poseLandmarker = null;
 let isLiffInitialized = false;
+let currentLiffId = "2011445978-6xeS4R70";
 let currentLiffUserId = "";
 let latestAnalysisData = null;
 let serverBaseUrl = "";
@@ -35,31 +36,30 @@ async function initSystem() {
     navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
   }
 
-  // LIFF ID (直接寫死並支援參數自定義)
-  let liffId = "2011445978-6xeS4R70";
+  // 嘗試讀取後端設定
   try {
     const cfgRes = await fetch('/api/config');
     if (cfgRes.ok) {
       const cfg = await cfgRes.json();
-      liffId = cfg.liffId || liffId;
-      serverBaseUrl = cfg.serverBaseUrl || "";
+      currentLiffId = cfg.liffId || currentLiffId;
+      serverBaseUrl = cfg.serverBaseUrl || serverBaseUrl;
     }
   } catch (err) {
-    console.log("無法獲取後端設定，使用預設 LIFF ID:", err);
+    console.log("後端設定讀取跳過 (使用預設或傳入設定)");
   }
 
   const urlParams = new URLSearchParams(window.location.search);
-  liffId = urlParams.get('liffId') || liffId;
+  currentLiffId = urlParams.get('liffId') || currentLiffId;
   serverBaseUrl = urlParams.get('server') || serverBaseUrl;
 
   // 初始化 LIFF
-  if (window.liff && liffId && liffId !== "YOUR_LIFF_ID") {
+  if (window.liff && currentLiffId && currentLiffId !== "YOUR_LIFF_ID") {
     try {
-      await liff.init({ liffId });
+      await liff.init({ liffId: currentLiffId });
       isLiffInitialized = true;
       console.log("✅ LIFF 初始化成功, isInClient:", liff.isInClient());
-      
-      // 取得使用者 ID (若有登入或在客戶端)
+
+      // 取得使用者 ID (供後端比對發送對象)
       try {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
@@ -257,7 +257,7 @@ async function handleVideoFile(file) {
 
   progressFill.style.width = "100%";
   progressPct.innerText = "100%";
-  statusMsg.innerText = "正在計算 P1/P4/P7 關鍵姿勢與生成診斷圖...";
+  statusMsg.innerText = "正在計算 P1/P4/P7 關鍵姿勢與生成骨架圖...";
 
   // 4. 計算揮桿關鍵影格
   const totalFrames = frames.length;
@@ -339,7 +339,7 @@ async function handleVideoFile(file) {
   document.getElementById("score-val").innerHTML = `${score}<span style="font-size: 18px; color: #fff;">分</span>`;
   document.getElementById("score-grade").innerText = score >= 90 ? "Tour Pro 級" : (score >= 85 ? "Semi-Pro 級" : "進步空間良好");
 
-  // 6. 產生 3 影格骨架合成圖並上傳至伺服器
+  // 6. 產生 3 影格骨架合成圖 (Base64 JPEG)
   const imageBase64 = createCompositeReportImage(
     frames[p1Idx], wristData[p1Idx].landmarks,
     frames[p4Idx], wristData[p4Idx].landmarks,
@@ -357,18 +357,28 @@ async function handleVideoFile(file) {
     imageBase64
   };
 
-  // 背景非同步上傳骨架照片
-  uploadReportData(latestAnalysisData);
-
   // 顯示結果
   uploadCard.style.display = "none";
   resultSection.style.display = "flex";
   URL.revokeObjectURL(fileUrl);
 
-  // 分析完成後，自動執行傳送診斷報告至 LINE 聊天室
-  setTimeout(() => {
-    shareToLine(true);
-  }, 400);
+  // 7. 使用 await 嚴格確保上傳至後端伺服器 (HTTP 200 OK) 後，才呼叫 LIFF 發送
+  statusMsg.innerText = "正在同步骨架分析報告至伺服器...";
+  btnShareLine.innerText = "⏳ 骨架報告同步中...";
+  btnShareLine.disabled = true;
+
+  try {
+    await uploadReportToServer(latestAnalysisData);
+    console.log("✅ [HTTP 200] 骨架報告與照片已成功儲存至後端！");
+  } catch (err) {
+    console.warn("上傳後端異常 (將嘗試發送關鍵字):", err);
+  } finally {
+    btnShareLine.disabled = false;
+    btnShareLine.innerText = "📊 查看本次揮桿診斷報告 (回傳聊天室)";
+  }
+
+  // 嚴格確認後端已儲存報告後，自動在 LINE 聊天室送出觸發文字
+  await shareToLine(true);
 }
 
 // 7. 產生專業 3 連格骨架診斷合成圖 (P1 / P4 / P7)
@@ -503,34 +513,33 @@ function createCompositeReportImage(frame1, lm1, frame4, lm4, frame7, lm7, spine
   return exportCanvas.toDataURL("image/jpeg", 0.88);
 }
 
-// 8. 上傳分析報告與合成照片至後端
-async function uploadReportData(data) {
-  const targetUrl = serverBaseUrl ? `${serverBaseUrl.rstrip?.('/') || serverBaseUrl}/api/upload_report` : '/api/upload_report';
-  
-  try {
-    const payload = {
-      userId: currentLiffUserId || "",
-      score: data.score,
-      spineAngle: data.spineAngle,
-      shoulderTurn: data.shoulderTurn,
-      imageBase64: data.imageBase64
-    };
-
-    const res = await fetch(targetUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      const ret = await res.json();
-      console.log("✅ 報告與骨架照片已成功同步至後端:", ret);
-    } else {
-      console.warn("後端上傳回應非 200:", res.status);
-    }
-  } catch (err) {
-    console.warn("上傳分析報告異常 (將使用本機展示):", err);
+// 8. 上傳分析報告與合成照片至 FastAPI 後端 (嚴格檢驗 HTTP 200 回應)
+async function uploadReportToServer(data) {
+  let endpoint = '/api/upload_report';
+  if (serverBaseUrl) {
+    endpoint = `${serverBaseUrl.replace(/\/+$/, '')}/api/upload_report`;
   }
+
+  const payload = {
+    userId: currentLiffUserId || "",
+    score: data.score,
+    spineAngle: data.spineAngle,
+    shoulderTurn: data.shoulderTurn,
+    imageBase64: data.imageBase64
+  };
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (res.status !== 200) {
+    throw new Error(`後端回應狀態異常: ${res.status}`);
+  }
+
+  const ret = await res.json();
+  return ret;
 }
 
 // 繪製骨架到預覽 Canvas
@@ -620,14 +629,13 @@ function movingAverage(arr, windowSize) {
   return result;
 }
 
-// 9. 傳送分析報告回 LINE (乾淨純文字觸發，由官方 Bot 回傳骨架照片與處方箋)
+// 9. 傳送分析報告回 LINE (純文字觸發「查看本次揮桿診斷報告」，由官方 Bot 透過 reply_message 回傳骨架照片與處方箋)
 window.shareToLine = async function (isAuto = false) {
   if (!latestAnalysisData) {
     if (!isAuto) alert("尚未完成分析！請先選取揮桿影片。");
     return;
   }
 
-  // 遵照使用者需求：簡潔純文字「查看本次揮桿診斷報告」
   const triggerMsg = "查看本次揮桿診斷報告";
   console.log("觸發發送訊息:", triggerMsg, "isAuto:", isAuto, "isLiffInitialized:", isLiffInitialized);
 
@@ -636,10 +644,10 @@ window.shareToLine = async function (isAuto = false) {
     if (liff.isLoggedIn() && liff.isInClient()) {
       try {
         await liff.sendMessages([{ type: "text", text: triggerMsg }]);
-        btnShareLine.innerText = "✅ 骨架照片與診斷已傳送！(點此關閉)";
+        btnShareLine.innerText = "✅ 診斷報告已請求！(點此關閉)";
         btnShareLine.style.background = "#059669";
         btnShareLine.onclick = () => liff.closeWindow();
-        console.log("✅ LIFF sendMessages 成功發送！");
+        console.log("✅ LIFF sendMessages 成功發送觸發文字！");
         return;
       } catch (err) {
         console.warn("LIFF sendMessages 失敗:", err);
@@ -647,7 +655,7 @@ window.shareToLine = async function (isAuto = false) {
     }
   }
 
-  // 2. Fallback: 外部瀏覽器或無 LIFF 權限時，透過 LINE URL Scheme 傳送
+  // 2. Fallback: 外部瀏覽器
   if (!isAuto) {
     const encodedMsg = encodeURIComponent(triggerMsg);
     window.location.href = `https://line.me/R/msg/text/?${encodedMsg}`;
