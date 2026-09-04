@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Golf Swing AI - 智慧揮桿分析儀</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d1f18">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0a110e;
+      --bg-card: rgba(18, 30, 25, 0.75);
+      --bg-card-border: rgba(46, 204, 113, 0.2);
+      --accent-green: #00E676;
+      --accent-glow: rgba(0, 230, 118, 0.35);
+      --accent-gold: #FFD54F;
+      --text-main: #FFFFFF;
+      --text-muted: #9E9E9E;
+      --font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: radial-gradient(circle at top center, #132a21 0%, var(--bg-primary) 70%);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 12px 0 6px 0;
+    }
+    .badge-pwa {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: rgba(0, 230, 118, 0.12);
+      border: 1px solid rgba(0, 230, 118, 0.3);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--accent-green);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #FFFFFF 40%, var(--accent-green) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Card Box */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed rgba(0, 230, 118, 0.35);
+      border-radius: 14px;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      background: rgba(0, 230, 118, 0.03);
+    }
+    .upload-zone:active, .upload-zone.dragover {
+      border-color: var(--accent-green);
+      background: rgba(0, 230, 118, 0.08);
+      transform: scale(0.99);
+    }
+    .upload-icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+      filter: drop-shadow(0 0 12px var(--accent-glow));
+    }
+    .upload-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .upload-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #00E676 0%, #00B0FF 100%);
+      color: #05140D;
+      font-size: 15px;
+      font-weight: 800;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(0, 230, 118, 0.3);
+      transition: all 0.2s ease;
+    }
+    .btn:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 10px rgba(0, 230, 118, 0.2);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: none;
+    }
+
+    /* Progress & Status */
+    #progress-container {
+      display: none;
+      margin-top: 14px;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-green), #00B0FF);
+      transition: width 0.1s linear;
+      border-radius: 6px;
+    }
+    .status-text {
+      font-size: 13px;
+      color: var(--accent-green);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Result Section */
+    #result-section {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Score Card */
+    .score-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(135deg, rgba(0, 230, 118, 0.15), rgba(0, 176, 255, 0.15));
+      border: 1px solid rgba(0, 230, 118, 0.4);
+      padding: 16px 20px;
+      border-radius: 14px;
+    }
+    .score-number {
+      font-size: 38px;
+      font-weight: 900;
+      color: var(--accent-green);
+      line-height: 1;
+      text-shadow: 0 0 16px var(--accent-glow);
+    }
+    .score-grade {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent-gold);
+      margin-top: 2px;
+    }
+
+    /* 3-Pose Cards Horizontal Scroll / Grid */
+    .pose-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .pose-card {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .pose-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .pose-tag {
+      color: var(--accent-green);
+    }
+    .pose-canvas-container {
+      width: 100%;
+      height: 180px;
+      display: flex;
+      justify-content: center;
+      background: #000;
+    }
+    .pose-canvas-container canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .pose-metrics {
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .pose-metrics span strong {
+      color: #FFF;
+    }
+
+    /* Hidden video & processing canvases */
+    #hidden-video, #process-canvas, #export-canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-pwa">
+        <div class="badge-dot"></div>
+        <span>Edge AI 晶片端即時運算</span>
+      </div>
+      <h1>GOLF SWING AI</h1>
+      <p class="subtitle">3 秒揮桿影片自動擷取 P1 / P4 / P7 骨架與評分</p>
+    </header>
+
+    <!-- Upload Section -->
+    <div class="card" id="upload-card">
+      <input type="file" id="video-input" accept="video/*" style="display:none">
+      <div class="upload-zone" id="drop-zone" onclick="document.getElementById('video-input').click()">
+        <div class="upload-icon">🏌️‍♂️</div>
+        <div class="upload-title">點擊選取揮桿影片</div>
+        <div class="upload-hint">支援 3~5 秒影片，直接使用手機晶片運算</div>
+      </div>
+
+      <div id="progress-container">
+        <div class="status-text">
+          <span id="status-msg">載入 AI 模型中...</span>
+          <span id="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result Section -->
+    <div id="result-section">
+      <div class="score-banner">
+        <div>
+          <div style="font-size: 12px; color: var(--text-muted);">整體動作評分</div>
+          <div class="score-grade" id="score-grade">Pro Swing 級</div>
+        </div>
+        <div class="score-number" id="score-val">88<span style="font-size: 18px; color: #fff;">分</span></div>
+      </div>
+
+      <div class="pose-grid">
+        <!-- P1 Address -->
+        <div class="pose-card">
+          <div class="pose-header">
+            <span class="pose-tag">P1 預備站姿 (Address)</span>
+            <span id="p1-frame-label">第 10 幀</span>
+          </div>
+          <div class="pose-canvas-container">
+            <canvas id="p1-canvas"></canvas>
+          </div>
+          <div class="pose-metrics">
+            <span>站姿穩定度：<strong>優異</strong></span>
+            <span>脊椎傾角：<strong id="p1-spine">32°</strong></span>
+          </div>
+        </div>
+
+        <!-- P4 Top of Swing -->
+        <div class="pose-card">
+          <div class="pose-header">
+            <span class="pose-tag">P4 上桿頂點 (Top)</span>
+            <span id="p4-frame-label">第 42 幀</span>
+          </div>
+          <div class="pose-canvas-container">
+            <canvas id="p4-canvas"></canvas>
+          </div>
+          <div class="pose-metrics">
+            <span>肩膀旋轉量：<strong id="p4-turn">89°</strong></span>
+            <span>頂點引導：<strong>充足</strong></span>
+          </div>
+        </div>
+
+        <!-- P7 Impact -->
+        <div class="pose-card">
+          <div class="pose-header">
+            <span class="pose-tag">P7 擊球瞬間 (Impact)</span>
+            <span id="p7-frame-label">第 52 幀</span>
+          </div>
+          <div class="pose-canvas-container">
+            <canvas id="p7-canvas"></canvas>
+          </div>
+          <div class="pose-metrics">
+            <span>下桿釋放：<strong>良好</strong></span>
+            <span>桿頭相對速度：<strong id="p7-vel">高</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <button class="btn" id="btn-share-line" style="display:none;" onclick="shareToLine()">
+        📤 傳送分析報告至 LINE 聊天室
+      </button>
+      <button class="btn btn-secondary" onclick="resetApp()">
+        🔄 分析下一支影片
+      </button>
+    </div>
+  </div>
+
+  <!-- Offscreen Elements -->
+  <video id="hidden-video" playsinline muted></video>
+  <canvas id="process-canvas"></canvas>
+  <canvas id="export-canvas"></canvas>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

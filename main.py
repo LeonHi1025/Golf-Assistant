@@ -1,41 +1,117 @@
 import os
-import uuid
-import threading
-from fastapi import FastAPI, Request, Header, HTTPException
+import json
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
-    Configuration, ApiClient, MessagingApi, MessagingApiBlob,
-    PushMessageRequest, ReplyMessageRequest, TextMessage, ImageMessage,
-    ShowLoadingAnimationRequest
+    Configuration, ApiClient, MessagingApi,
+    ReplyMessageRequest, FlexMessage, FlexContainer
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, VideoMessageContent
 
-from analyzer import analyze_golf_swing
+app = FastAPI(title="Golf Swing AI Assistant (Edge PWA)")
 
-app = FastAPI()
-
-# 靜態目錄：產生的分析結果圖放這裡，供 LINE 下載
+# 靜態檔案服務 (包含 PWA 網頁、Service Worker 與圖標)
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 從環境變數讀取金鑰與公開網址
+# 從環境變數讀取金鑰與網址設定
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET", "")
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN", "")
-SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "") # Render 的公開網址 (例如 https://xxx.onrender.com)
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "")
+LIFF_ID = os.getenv("LIFF_ID", "")
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
+def get_app_url() -> str:
+    """取得 PWA / LIFF 網頁專屬連結"""
+    if LIFF_ID:
+        return f"https://liff.line.me/{LIFF_ID}"
+    if SERVER_BASE_URL:
+        return f"{SERVER_BASE_URL.rstrip('/')}/static/index.html"
+    return "/static/index.html"
+
+def build_flex_card() -> dict:
+    """建立高質感 LINE Flex Message 導流卡片"""
+    return {
+        "type": "bubble",
+        "size": "mega",
+        "hero": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "🏌️ GOLF SWING AI",
+                    "weight": "bold",
+                    "size": "xl",
+                    "color": "#00E676"
+                },
+                {
+                    "type": "text",
+                    "text": "手機邊緣晶片即時運算・零等待",
+                    "size": "xs",
+                    "color": "#81C784",
+                    "margin": "xs"
+                }
+            ],
+            "backgroundColor": "#0d1f18",
+            "paddingAll": "20px"
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": "智慧分析 P1 / P4 / P7 關鍵動作",
+                    "weight": "bold",
+                    "size": "md",
+                    "color": "#FFFFFF"
+                },
+                {
+                    "type": "text",
+                    "text": "點擊下方按鈕開啟分析儀，選取 3 秒影片即可透過手機 GPU 在 2 秒內完成骨架擷取與動作評分！",
+                    "size": "xs",
+                    "color": "#B0BEC5",
+                    "wrap": True,
+                    "margin": "md"
+                }
+            ],
+            "backgroundColor": "#132a21",
+            "paddingAll": "20px"
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "primary",
+                    "color": "#00E676",
+                    "action": {
+                        "type": "uri",
+                        "label": "🚀 立即打開揮桿分析儀",
+                        "uri": get_app_url()
+                    }
+                }
+            ],
+            "backgroundColor": "#0d1f18",
+            "paddingAll": "16px"
+        }
+    }
+
 @app.get("/")
 def index():
-    return {"status": "Golf Swing Analyzer is running!"}
+    """首頁自動轉跳至 PWA 揮桿分析儀"""
+    return RedirectResponse(url="/static/index.html")
 
 @app.post("/callback")
 async def callback(request: Request):
-    # 抓取簽章
     signature = request.headers.get("x-line-signature") or request.headers.get("X-Line-Signature", "")
     body = await request.body()
     body_str = body.decode("utf-8")
@@ -53,89 +129,38 @@ async def callback(request: Request):
 
     return "OK"
 
-def process_video_task(message_id: str, user_id: str):
-    raw_video = f"temp_{message_id}.mp4"
-    img_filename = f"{uuid.uuid4().hex[:8]}.jpg"
-    out_image_path = os.path.join("static", img_filename)
-
-    with ApiClient(configuration) as api_client:
-        blob_api = MessagingApiBlob(api_client)
-        msg_api = MessagingApi(api_client)
-
-        try:
-            # 1. 顯示轉圈思考動畫
-            msg_api.show_loading_animation(
-                ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=30)
-            )
-
-            # 2. 下載影片檔案
-            video_bytes = blob_api.get_message_content(message_id)
-            with open(raw_video, "wb") as f:
-                f.write(video_bytes)
-
-            # 3. 呼叫骨架分析
-            res = analyze_golf_swing(raw_video, out_image_path)
-
-            if res.get("success"):
-                public_img_url = f"{SERVER_BASE_URL.rstrip('/')}/static/{img_filename}"
-                report = (
-                    f"⛳ 揮桿骨架分析完成！\n"
-                    f"━━━━━━━━━━━━\n"
-                    f"• 總分析影格：{res['total_frames']} 幀\n"
-                    f"• P1 預備站姿：第 {res['p1']} 幀\n"
-                    f"• P4 上桿頂點：第 {res['p4']} 幀\n"
-                    f"• P7 擊球瞬間：第 {res['p7']} 幀\n"
-                    f"━━━━━━━━━━━━\n"
-                    f"已為您標註 P1/P4/P7 骨架對比圖如下："
-                )
-                
-                # 4. 回傳文字與圖片
-                msg_api.push_message(
-                    PushMessageRequest(
-                        to=user_id,
-                        messages=[
-                            TextMessage(text=report),
-                            ImageMessage(
-                                originalContentUrl=public_img_url,
-                                previewImageUrl=public_img_url
-                            )
-                        ]
-                    )
-                )
-            else:
-                msg_api.push_message(
-                    PushMessageRequest(
-                        to=user_id,
-                        messages=[TextMessage(text=f"分析失敗：{res.get('error', '未知錯誤')}")]
-                    )
-                )
-
-        except Exception as e:
-            print(f"處理出錯: {e}")
-        finally:
-            if os.path.exists(raw_video):
-                os.remove(raw_video)
-
-# 處理文字訊息 (傳 hi 就會回覆)
+# 處理文字訊息：傳送任何文字皆回傳分析儀卡片
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text(event: MessageEvent):
+    flex_json = build_flex_card()
     with ApiClient(configuration) as api_client:
         msg_api = MessagingApi(api_client)
         msg_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[
-                    TextMessage(
-                        text="你好！請直接傳送一段 3~5 秒的揮桿影片，我會為你擷取 P1/P4/P7 關鍵姿勢並標註骨架！"
+                    FlexMessage(
+                        alt_text="🏌️ 高爾夫 AI 揮桿分析儀已就緒，請點擊打開！",
+                        contents=FlexContainer.from_json(json.dumps(flex_json))
                     )
                 ]
             )
         )
 
-# 處理影片訊息 (使用背景 Thread 避免 LINE Webhook 連線逾時)
+# 處理影片訊息：若使用者直接傳送影片，引導至 PWA 獲得最流暢的晶片即時體驗
 @handler.add(MessageEvent, message=VideoMessageContent)
 def handle_video(event: MessageEvent):
-    user_id = event.source.user_id
-    message_id = event.message.id
-    # 在背景 thread 執行耗時的 MediaPipe 影像分析
-    threading.Thread(target=process_video_task, args=(message_id, user_id), daemon=True).start()
+    flex_json = build_flex_card()
+    with ApiClient(configuration) as api_client:
+        msg_api = MessagingApi(api_client)
+        msg_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[
+                    FlexMessage(
+                        alt_text="🏌️ 請點擊按鈕開啟分析儀選取影片！",
+                        contents=FlexContainer.from_json(json.dumps(flex_json))
+                    )
+                ]
+            )
+        )
