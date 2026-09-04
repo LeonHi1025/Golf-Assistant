@@ -33,19 +33,18 @@ async function initSystem() {
     navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
   }
 
-  // 自動向後端取得 LIFF_ID 設定
-  let liffId = "";
+  // LIFF ID (直接寫死並支援參數自定義)
+  let liffId = "2011445978-6xeS4R70";
   try {
     const cfgRes = await fetch('/api/config');
     if (cfgRes.ok) {
       const cfg = await cfgRes.json();
-      liffId = cfg.liffId || "";
+      liffId = cfg.liffId || liffId;
     }
   } catch (err) {
-    console.log("無法獲取後端設定:", err);
+    console.log("無法獲取後端設定，使用預設 LIFF ID:", err);
   }
 
-  // 若網址帶有參數則優先採用
   const urlParams = new URLSearchParams(window.location.search);
   liffId = urlParams.get('liffId') || liffId;
 

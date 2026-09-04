@@ -22,8 +22,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # 從環境變數讀取金鑰與網址設定
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET", "")
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN", "")
-SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "")
-LIFF_ID = os.getenv("LIFF_ID", "")
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "https://leonhi1025.github.io/Golf-Assistant")
+LIFF_ID = os.getenv("LIFF_ID", "2011445978-6xeS4R70")
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
