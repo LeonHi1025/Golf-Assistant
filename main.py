@@ -180,7 +180,7 @@ def build_diagnosis_card(user_msg: str) -> dict:
                         }
                     ]
                 },
-                {"type": "separator", "margin": "lg", "color": "rgba(255,255,255,0.15)"},
+                {"type": "separator", "margin": "lg", "color": "#2E483D"},
                 {
                     "type": "text",
                     "text": "💡 今日專屬教練建議：",
