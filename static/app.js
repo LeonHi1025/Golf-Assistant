@@ -341,6 +341,11 @@ async function handleVideoFile(file) {
   uploadCard.style.display = "none";
   resultSection.style.display = "flex";
   URL.revokeObjectURL(fileUrl);
+
+  // 分析完成後，自動執行傳送診斷報告至 LINE 聊天室
+  setTimeout(() => {
+    shareToLine(true);
+  }, 400);
 }
 
 // 繪製骨架與標籤到 Canvas
@@ -430,10 +435,10 @@ function movingAverage(arr, windowSize) {
   return result;
 }
 
-// 傳送分析報告回 LINE (保留網頁分析畫面供持續觀察)
-window.shareToLine = async function () {
+// 傳送分析報告回 LINE
+window.shareToLine = async function (isAuto = false) {
   if (!latestAnalysisData) {
-    alert("尚未完成分析！");
+    if (!isAuto) alert("尚未完成分析！");
     return;
   }
 
@@ -441,21 +446,31 @@ window.shareToLine = async function () {
 
   if (window.liff) {
     if (!liff.isLoggedIn()) {
-      liff.login();
+      if (!isAuto) liff.login();
       return;
     }
 
     try {
       await liff.sendMessages([{ type: "text", text: triggerMsg }]);
-      btnShareLine.innerText = "✅ 診斷已發送至聊天室！(點擊關閉視窗)";
+      btnShareLine.innerText = "✅ 診斷已發送至 LINE！(點此關閉)";
       btnShareLine.style.background = "#059669";
       btnShareLine.onclick = () => liff.closeWindow();
+      console.log("✅ LIFF sendMessages 成功發送");
+      return;
     } catch (err) {
-      console.error("LIFF sendMessages 錯誤:", err);
-      alert("⚠️ 發送失敗！\n常見原因：請前往 LINE Developers 後台確認 LIFF App 的 Scopes 是否已勾選「chat_message.write」權限。");
+      console.warn("LIFF sendMessages 失敗:", err);
+      if (!isAuto) {
+        alert("⚠️ 無法直接在聊天室發話。\n可能原因：請確認 LINE Developers 後台 LIFF 設定的 Scopes 已勾選「chat_message.write」權限！");
+      }
     }
+  }
+
+  // Fallback: 如果無法直接呼叫 liff.sendMessages
+  if (!isAuto) {
+    const encodedMsg = encodeURIComponent(triggerMsg);
+    window.location.href = `https://line.me/R/msg/text/?${encodedMsg}`;
   } else {
-    alert("目前在一般瀏覽器預覽。\n在 LINE 內開啟時，點擊此按鈕將自動替您發送診斷報告並由 AI 教練在聊天室秒回專業處方箋！");
+    btnShareLine.innerText = "📊 點此一鍵傳送診斷報告至 LINE";
   }
 };
 
