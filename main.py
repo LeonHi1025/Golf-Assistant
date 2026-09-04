@@ -15,7 +15,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration, ApiClient, MessagingApi,
-    ReplyMessageRequest, FlexMessage, FlexContainer, ImageMessage
+    ReplyMessageRequest, FlexMessage, FlexContainer, ImageMessage, TextMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, VideoMessageContent
 
@@ -352,8 +352,9 @@ async def callback(request: Request):
 def handle_text(event: MessageEvent):
     user_text = event.message.text.strip()
     user_id = getattr(event.source, "user_id", "") or ""
+    normalized_text = user_text.lower()
     
-    # 判斷是否為使用者回覆「查看本次揮桿診斷報告」
+    # 1. 判斷是否為使用者回覆「查看本次揮桿診斷報告」
     if "查看本次揮桿診斷報告" in user_text:
         # 尋找此使用者最近上傳的分析報告 (或全域最新報告)
         report = user_reports.get(user_id) or latest_global_report
@@ -396,14 +397,22 @@ def handle_text(event: MessageEvent):
                 )
             )
 
-    else:
-        # 一般文字訊息，引導使用者開啟分析儀
-        flex_json = build_entry_card()
+    # 2. 喚醒與伺服器狀態查詢：Hi! Wake up!
+    elif "wake up" in normalized_text or "wake" in normalized_text:
         reply_messages = [
-            FlexMessage(
-                alt_text="🏌️ 高爾夫 AI 揮桿分析儀已就緒，請點擊打開！",
-                contents=FlexContainer.from_json(json.dumps(flex_json))
-            )
+            TextMessage(text="Hi! 現在可以點Let’s Analyze來嘗試功能！")
+        ]
+
+    # 3. 彩蛋關鍵字：Amba
+    elif normalized_text == "amba":
+        reply_messages = [
+            TextMessage(text="oh..Shit...")
+        ]
+
+    # 4. 其餘輸入統一回覆
+    else:
+        reply_messages = [
+            TextMessage(text="可以嘗試Let’s Analyze進行高爾夫球姿勢影片分析哦")
         ]
 
     with ApiClient(configuration) as api_client:
