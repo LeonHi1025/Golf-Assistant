@@ -33,18 +33,31 @@ async function initSystem() {
     navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
   }
 
-  // 初始化 LIFF (嘗試讀取網址參數或環境)
-  if (window.liff) {
+  // 自動向後端取得 LIFF_ID 設定
+  let liffId = "";
+  try {
+    const cfgRes = await fetch('/api/config');
+    if (cfgRes.ok) {
+      const cfg = await cfgRes.json();
+      liffId = cfg.liffId || "";
+    }
+  } catch (err) {
+    console.log("無法獲取後端設定:", err);
+  }
+
+  // 若網址帶有參數則優先採用
+  const urlParams = new URLSearchParams(window.location.search);
+  liffId = urlParams.get('liffId') || liffId;
+
+  // 初始化 LIFF
+  if (window.liff && liffId) {
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const liffId = urlParams.get('liffId') || "YOUR_LIFF_ID";
       await liff.init({ liffId });
       if (liff.isLoggedIn()) {
         isLiffReady = true;
-        btnShareLine.style.display = "inline-flex";
       }
     } catch (e) {
-      console.warn("LIFF 初始化跳過 (一般瀏覽器環境):", e);
+      console.warn("LIFF 初始化異常:", e);
     }
   }
 
@@ -417,7 +430,7 @@ function movingAverage(arr, windowSize) {
   return result;
 }
 
-// 傳送分析報告回 LINE 並關閉視窗
+// 傳送分析報告回 LINE (保留網頁分析畫面供持續觀察)
 window.shareToLine = async function () {
   if (!latestAnalysisData) {
     alert("尚未完成分析！");
@@ -426,16 +439,23 @@ window.shareToLine = async function () {
 
   const triggerMsg = `查看本次揮桿診斷報告 [得分:${latestAnalysisData.score}|P1脊椎:${latestAnalysisData.spineAngle}°|P4轉體:${latestAnalysisData.shoulderTurn}°|P7釋放:優異]`;
 
-  if (window.liff && liff.isLoggedIn()) {
+  if (window.liff) {
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
     try {
       await liff.sendMessages([{ type: "text", text: triggerMsg }]);
-      liff.closeWindow();
+      btnShareLine.innerText = "✅ 診斷已發送至聊天室！(點擊關閉視窗)";
+      btnShareLine.style.background = "#059669";
+      btnShareLine.onclick = () => liff.closeWindow();
     } catch (err) {
-      console.warn("LIFF 自動發話失敗:", err);
-      alert("無法發送訊息，請確認已在 LINE 聊天室環境中開啟！");
+      console.error("LIFF sendMessages 錯誤:", err);
+      alert("⚠️ 發送失敗！\n常見原因：請前往 LINE Developers 後台確認 LIFF App 的 Scopes 是否已勾選「chat_message.write」權限。");
     }
   } else {
-    alert("目前在一般瀏覽器預覽。\n在 LINE 內開啟時，點擊此按鈕將自動幫您發送「查看本次揮桿診斷報告」並由 AI 教練在聊天室秒回專業診斷！");
+    alert("目前在一般瀏覽器預覽。\n在 LINE 內開啟時，點擊此按鈕將自動替您發送診斷報告並由 AI 教練在聊天室秒回專業處方箋！");
   }
 };
 

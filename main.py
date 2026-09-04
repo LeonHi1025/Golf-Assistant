@@ -36,6 +36,14 @@ def get_app_url() -> str:
         return f"{SERVER_BASE_URL.rstrip('/')}/static/index.html"
     return "/static/index.html"
 
+@app.get("/api/config")
+def get_config():
+    """提供前端動態讀取 LIFF_ID 與設定，避免寫死在 JS"""
+    return {
+        "liffId": LIFF_ID,
+        "serverBaseUrl": SERVER_BASE_URL
+    }
+
 def build_entry_card() -> dict:
     """建立揮桿分析儀入口卡片"""
     return {
