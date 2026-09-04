@@ -343,8 +343,7 @@ async function handleVideoFile(file) {
   const imageBase64 = createCompositeReportImage(
     frames[p1Idx], wristData[p1Idx].landmarks,
     frames[p4Idx], wristData[p4Idx].landmarks,
-    frames[p7Idx], wristData[p7Idx].landmarks,
-    spineAngle, shoulderTurn, score
+    frames[p7Idx], wristData[p7Idx].landmarks
   );
 
   latestAnalysisData = {
@@ -381,58 +380,35 @@ async function handleVideoFile(file) {
   await shareToLine(true);
 }
 
-// 7. 產生專業 3 連格骨架診斷合成圖 (P1 / P4 / P7)
-function createCompositeReportImage(frame1, lm1, frame4, lm4, frame7, lm7, spineAngle, shoulderTurn, score) {
+// 7. 產生簡潔 3 連格骨架診斷照片 (P1 / P4 / P7 乾淨無多餘文字)
+function createCompositeReportImage(frame1, lm1, frame4, lm4, frame7, lm7) {
   const exportCanvas = document.getElementById("export-canvas");
   const ctx = exportCanvas.getContext("2d");
 
   const panelW = 360;
   const panelH = 640;
-  const headerH = 70;
-  const footerH = 50;
   const totalW = panelW * 3;
-  const totalH = panelH + headerH + footerH;
+  const totalH = panelH;
 
   exportCanvas.width = totalW;
   exportCanvas.height = totalH;
 
   // 背景暗色填滿
-  ctx.fillStyle = "#0A110E";
+  ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, totalW, totalH);
-
-  // 頂部橫幅
-  const grad = ctx.createLinearGradient(0, 0, totalW, 0);
-  grad.addColorStop(0, "#0D1F18");
-  grad.addColorStop(0.5, "#16382B");
-  grad.addColorStop(1, "#0D1F18");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, totalW, headerH);
-
-  // 頂部標題與總評
-  ctx.fillStyle = "#00E676";
-  ctx.font = "bold 26px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText("🏌️ GOLF SWING AI 揮桿骨架分析", 24, 44);
-
-  const gradeText = score >= 90 ? "Tour Pro 級" : (score >= 85 ? "Semi-Pro 級" : "進階學習級");
-  ctx.fillStyle = "#FFD54F";
-  ctx.font = "bold 22px sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText(`動作評分：${score}分 (${gradeText})`, totalW - 24, 44);
 
   // 繪製三個關鍵影格面板
   const panels = [
-    { frame: frame1, lm: lm1, title: "P1 預備站姿 (Address)", metric: `脊椎傾角：${spineAngle}° (標準穩定)` },
-    { frame: frame4, lm: lm4, title: "P4 上桿頂點 (Top)", metric: `轉體旋轉：${shoulderTurn}° (蓄力充足)` },
-    { frame: frame7, lm: lm7, title: "P7 擊球瞬間 (Impact)", metric: "核心完全釋放・加速流暢" }
+    { frame: frame1, lm: lm1, tag: "P1  準備站姿" },
+    { frame: frame4, lm: lm4, tag: "P4  上桿頂點" },
+    { frame: frame7, lm: lm7, tag: "P7  擊球瞬間" }
   ];
 
   panels.forEach((p, i) => {
     const startX = i * panelW;
-    const startY = headerH;
 
     // 繪製背景視訊影格
-    ctx.drawImage(p.frame, startX, startY, panelW, panelH);
+    ctx.drawImage(p.frame, startX, 0, panelW, panelH);
 
     // 繪製骨架線與關節
     if (p.lm) {
@@ -441,10 +417,10 @@ function createCompositeReportImage(frame1, lm1, frame4, lm4, frame7, lm7, spine
         const lm = p.lm[idx];
         if (lm && (lm.visibility || 1.0) >= 0.4) {
           const cx = startX + lm.x * panelW;
-          const cy = startY + lm.y * panelH;
+          const cy = lm.y * panelH;
           pts[idx] = [cx, cy];
 
-          // 關節點 (亮黃色帶陰影)
+          // 關節點 (亮黃色帶立體外圈)
           ctx.beginPath();
           ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
           ctx.fillStyle = "#FFEB3B";
@@ -470,45 +446,37 @@ function createCompositeReportImage(frame1, lm1, frame4, lm4, frame7, lm7, spine
       }
     }
 
-    // 面板頂部標籤透明背板
-    ctx.fillStyle = "rgba(10, 20, 15, 0.75)";
-    ctx.fillRect(startX + 12, startY + 12, panelW - 24, 34);
-    ctx.strokeStyle = "rgba(0, 230, 118, 0.4)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(startX + 12, startY + 12, panelW - 24, 34);
+    // 面板頂部精簡標籤膠囊 (P1 / P4 / P7)
+    const badgeW = 120;
+    const badgeH = 34;
+    const badgeX = startX + 16;
+    const badgeY = 16;
 
-    // 面板標題文字
-    ctx.fillStyle = "#FFFFFF";
+    ctx.fillStyle = "rgba(10, 20, 15, 0.82)";
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(0, 230, 118, 0.6)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 標籤文字
+    ctx.fillStyle = "#00E676";
     ctx.font = "bold 15px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(p.title, startX + panelW / 2, startY + 34);
-
-    // 面板底部指標透明背板
-    ctx.fillStyle = "rgba(10, 20, 15, 0.85)";
-    ctx.fillRect(startX + 12, startY + panelH - 44, panelW - 24, 32);
-
-    ctx.fillStyle = "#00E676";
-    ctx.font = "bold 13px sans-serif";
-    ctx.fillText(p.metric, startX + panelW / 2, startY + panelH - 23);
+    ctx.fillText(p.tag, badgeX + badgeW / 2, badgeY + 23);
 
     // 面板分割線
     if (i > 0) {
-      ctx.strokeStyle = "rgba(0, 230, 118, 0.25)";
+      ctx.strokeStyle = "rgba(0, 230, 118, 0.35)";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(startX, headerH);
-      ctx.lineTo(startX, headerH + panelH);
+      ctx.moveTo(startX, 0);
+      ctx.lineTo(startX, panelH);
       ctx.stroke();
     }
   });
-
-  // 底部版權/診斷標籤
-  ctx.fillStyle = "#0A110E";
-  ctx.fillRect(0, totalH - footerH, totalW, footerH);
-  ctx.fillStyle = "#81C784";
-  ctx.font = "14px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("Edge AI 邊緣晶片即時運算診斷・高爾夫智慧揮桿助理", totalW / 2, totalH - 18);
 
   return exportCanvas.toDataURL("image/jpeg", 0.88);
 }

@@ -213,11 +213,13 @@ def build_entry_card() -> dict:
         }
     }
 
-def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89, image_url: Optional[str] = None) -> dict:
-    """生成 100% 免費的 Reply 專業教練診斷書"""
+from fastapi.responses import RedirectResponse, Response
+
+def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> dict:
+    """生成 100% 免費的 Reply 專業教練診斷書 (純文字指標卡片)"""
     grade = "Tour Pro 級" if score >= 90 else ("Semi-Pro 級" if score >= 85 else "業餘進階級")
 
-    card = {
+    return {
         "type": "bubble",
         "size": "mega",
         "body": {
@@ -242,23 +244,23 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89, image
                 {
                     "type": "box",
                     "layout": "vertical",
-                    "margin": "sm",
+                    "margin": "md",
                     "spacing": "sm",
                     "contents": [
                         {
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "P1 站姿傾角", "color": "#9E9E9E", "size": "sm", "flex": 3},
-                                {"type": "text", "text": f"{spine}° (標準穩定)", "color": "#FFFFFF", "size": "sm", "weight": "bold", "flex": 5}
+                                {"type": "text", "text": "P1 準備站姿", "color": "#9E9E9E", "size": "sm", "flex": 3},
+                                {"type": "text", "text": f"脊椎傾角 {spine}° (標準穩定)", "color": "#FFFFFF", "size": "sm", "weight": "bold", "flex": 5}
                             ]
                         },
                         {
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "P4 頂點蓄力", "color": "#9E9E9E", "size": "sm", "flex": 3},
-                                {"type": "text", "text": f"{turn}° (轉體充足)", "color": "#FFFFFF", "size": "sm", "weight": "bold", "flex": 5}
+                                {"type": "text", "text": "P4 上桿頂點", "color": "#9E9E9E", "size": "sm", "flex": 3},
+                                {"type": "text", "text": f"旋轉幅度 {turn}° (蓄力充足)", "color": "#FFFFFF", "size": "sm", "weight": "bold", "flex": 5}
                             ]
                         },
                         {
@@ -312,21 +314,9 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89, image
         }
     }
 
-    # 若有照片網址，嵌入為卡片頂部 Hero 圖
-    if image_url:
-        card["hero"] = {
-            "type": "image",
-            "url": image_url,
-            "size": "full",
-            "aspectRatio": "16:9",
-            "aspectMode": "cover",
-            "action": {
-                "type": "uri",
-                "uri": image_url
-            }
-        }
-
-    return card
+@app.get("/favicon.ico")
+def favicon():
+    return Response(status_code=204)
 
 @app.get("/")
 def index():
@@ -377,10 +367,10 @@ def handle_text(event: MessageEvent):
             filename = report.get("filename")
             
             # 組成 HTTPS 圖片網址
-            base_url = SERVER_BASE_URL or latest_server_host or "https://leonhi1025.github.io/Golf-Assistant"
+            base_url = SERVER_BASE_URL or latest_server_host or "https://golf-assistant.onrender.com"
             img_url = f"{base_url.rstrip('/')}/static/reports/{filename}"
             
-            # 1. 骨架分析照片
+            # 1. 骨架分析照片 (發送一次獨立大圖)
             reply_messages.append(
                 ImageMessage(
                     original_content_url=img_url,
@@ -388,8 +378,8 @@ def handle_text(event: MessageEvent):
                 )
             )
             
-            # 2. 揮桿診斷處方箋 Flex Card (頂部帶骨架預覽)
-            flex_json = build_diagnosis_card(score=score, spine=spine, turn=turn, image_url=img_url)
+            # 2. 揮桿診斷處方箋 Flex Card (純文字與指標)
+            flex_json = build_diagnosis_card(score=score, spine=spine, turn=turn)
             reply_messages.append(
                 FlexMessage(
                     alt_text="⛳ 您的專屬高爾夫揮桿診斷處方箋已出爐！",
