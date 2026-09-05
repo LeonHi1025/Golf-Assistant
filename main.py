@@ -476,7 +476,7 @@ def handle_text(event: MessageEvent):
             "    * 數值可能受攝影角度、衣著寬鬆度或光線影響而產生偏差，實際動作診斷與調整建議請務必以專業指導教練／老師現場指導為主。\n"
             "\n4. 版權與著作權聲明：\n"
             "    * 系統對比採用之職業選手標準動作指標（包含 Tiger Woods 等相關基準數據與參考示意），僅作為學術研究、個人化運動力學分析與技術驗證之合理使用範圍，相關影像之原著作權仍歸原著作權人與轉播單位所有。\n\n"
-            "以下為建議拍攝角度"
+            "以下為建議拍攝角度📸"
         )
         guide_img_url = f"{base_url.rstrip('/')}/static/guide_camera_angle.jpg"
         reply_messages = [
@@ -490,25 +490,25 @@ def handle_text(event: MessageEvent):
     # 4. 喚醒與伺服器狀態查詢：Hi! Wake Up!
     elif "wake up" in normalized_text or "wake" in normalized_text:
         reply_messages = [
-            TextMessage(text="我在8:00~22:00都是醒著哦，可以直接點擊左下角“分析”使用，若在其他時段找我，請等我起床....，我會馬上回覆你")
+            TextMessage(text="我在8:00~22:00都是醒著哦，可以直接點擊左下角“分析”使用，若在其他時段找我，請等我起床💤💤，我會馬上回覆你😀")
         ]
 
     # 5. 彩蛋關鍵字：謝亞諺
     elif "謝亞諺" in user_text:
         reply_messages = [
-            TextMessage(text="他在偷讀書請小心")
+            TextMessage(text="他在偷讀書請小心😡")
         ]
 
     # 6. 彩蛋關鍵字：吳柏毅
     elif "吳柏毅" in user_text:
         reply_messages = [
-            TextMessage(text="Uber Eat 他在偷讀書，快去打擾他")
+            TextMessage(text="Uber Eat 他在偷讀書，快去打擾他😄")
         ]
 
     # 7. 彩蛋關鍵字：莊有隆
     elif "莊有隆" in user_text:
         reply_messages = [
-            TextMessage(text="身旁的人都在偷讀書，壓力很大....")
+            TextMessage(text="身旁的人都在偷讀書，壓力很大....🫩")
         ]
 
     # 8. 彩蛋關鍵字：Amba
@@ -520,7 +520,7 @@ def handle_text(event: MessageEvent):
     # 9. 其餘輸入一律回覆
     else:
         reply_messages = [
-            TextMessage(text="可嘗試點擊分析進行使用哦")
+            TextMessage(text="可嘗試點擊分析進行使用哦✌️")
         ]
 
     with ApiClient(configuration) as api_client:
