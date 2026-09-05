@@ -462,7 +462,7 @@ def handle_text(event: MessageEvent):
             flex_json = build_diagnosis_card(score=score, similarity=similarity, spine=spine, turn=turn, diffs=diffs, advice=advice)
             reply_messages.append(
                 FlexMessage(
-                    alt_text="⛳ 您的專屬 Tiger 職業標準揮桿診斷處方箋已出爐！",
+                    alt_text="⛳ 您的專屬職業標準揮桿診斷已出爐！",
                     contents=FlexContainer.from_json(json.dumps(flex_json))
                 )
             )
@@ -486,15 +486,14 @@ def handle_text(event: MessageEvent):
                 )
             )
 
-    # 2. 觸發防呆機制警示回覆 (格式不符合規定)
+    # 2. 觸發防呆機制警示回覆 (格式不符合規定或角度偏差 > 60°)
     elif "警告" in user_text:
         reply_text = (
-            "⚠️ 格式不符合規定！\n\n"
+            "⚠️ 格式不符合規定或動作偏差過大！\n\n"
             "📌 上傳與分析規範：\n"
-            "1. 影片長度須在 60 秒以內（不支援照片）。\n"
-            "2. 請確保人物全身清楚入鏡，並完成標準高爾夫揮桿動作。\n"
-            "3. 若肢體差距過大、骨架嚴重錯位或非揮桿影片將無法分析。\n\n"
-            "請檢查後重新上傳！"
+            "1. 影片長度須在 60 秒以內（不支援照片），建議 3～10 秒正面拍攝。\n"
+            "2. 請確保人物正面（Face-on）全身清楚入鏡，並完成標準高爾夫揮桿動作。\n"
+            "3. 若手部或身體角度與標準偏差大於 60°，系統將判定為姿勢嚴重錯誤或非高爾夫動作，建議直接向專業教練請教指導，或確認拍攝格式後重新上傳！"
         )
         reply_messages = [
             TextMessage(text=reply_text)
@@ -517,7 +516,7 @@ def handle_text(event: MessageEvent):
             "    * 數值可能受攝影角度、衣著寬鬆度或光線影響而產生偏差，實際動作診斷與調整建議請務必以專業指導教練／老師現場指導為主。\n"
             "\n4. 版權與著作權聲明：\n"
             "    * 系統對比採用之職業選手標準動作指標（包含 Tiger Woods 等相關基準數據與參考示意），僅作為學術研究、個人化運動力學分析與技術驗證之合理使用範圍，相關影像之原著作權仍歸原著作權人與轉播單位所有。\n\n"
-            "以下為建議拍攝角度📸"
+            "以下為建議拍攝角度📸（❗請一氣呵成揮竿，避免試揮）"
         )
         guide_img_url = f"{base_url.rstrip('/')}/static/guide_camera_angle.jpg"
         reply_messages = [
@@ -531,7 +530,7 @@ def handle_text(event: MessageEvent):
     # 4. 喚醒與伺服器狀態查詢：Hi! Wake Up!
     elif "wake up" in normalized_text or "wake" in normalized_text:
         reply_messages = [
-            TextMessage(text="我在8:00~22:00都是醒著哦♥️，可以直接點擊左下角“分析”使用，若在其他時段找我，請等我起床💤💤，我會馬上回覆你😀")
+            TextMessage(text="我在8:00~22:00都是醒著哦♥️，可以直接點擊左下角“分析”使用（❗請一氣呵成揮竿，避免試揮），若在其他時段找我，請等我起床💤💤，我會馬上回覆你😀")
         ]
 
     # 5. 彩蛋關鍵字：謝亞諺
@@ -561,7 +560,7 @@ def handle_text(event: MessageEvent):
     # 9. 其餘輸入一律回覆
     else:
         reply_messages = [
-            TextMessage(text="可嘗試點擊分析進行使用哦✌️")
+            TextMessage(text="可嘗試點擊分析進行使用哦✌️（❗請一氣呵成揮竿，避免試揮）")
         ]
 
     with ApiClient(configuration) as api_client:
@@ -584,7 +583,7 @@ def handle_video(event: MessageEvent):
                 reply_token=event.reply_token,
                 messages=[
                     FlexMessage(
-                        alt_text="🏌️ 請點擊按鈕開啟分析儀選取影片！",
+                        alt_text="🏌️ 請點擊按鈕開啟分析儀選取影片！（❗請一氣呵成揮竿，避免試揮）",
                         contents=FlexContainer.from_json(json.dumps(flex_json))
                     )
                 ]

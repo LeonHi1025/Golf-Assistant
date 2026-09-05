@@ -529,6 +529,16 @@ async function handleVideoFile(file) {
     P10: calcArmTorsoAngle(wristData[p10Idx]?.landmarks),
   };
 
+  // 防呆機制：若手部角度差大於 60° 即判斷為姿勢嚴重錯誤或非高爾夫動作，進入防呆
+  const proArmStandard = { P2: 40, P3: 77, P4: 148, P5: 104, P6: 26, P7: 3, P8: 66, P9: 130, P10: 132 };
+  const maxArmDiff = Math.max(...Object.entries(proArmStandard).map(([p, proVal]) => Math.abs(armAngles[p] - proVal)));
+  const spineDiffVal = Math.abs(spineAngle - 32);
+
+  if (maxArmDiff > 60 || spineDiffVal > 60) {
+    await triggerFoolproofWarning("手部或身體角度偏差過大（差值 > 60°），判定為姿勢嚴重偏差或非高爾夫動作。建議直接向專業教練請教指導，或確認拍攝格式為正面全身揮桿。");
+    return;
+  }
+
   const userMetrics = {
     spineAngle,
     shoulderTurn,
@@ -971,23 +981,33 @@ function compareWithPro(userMetrics, pro) {
   const diffP9 = Math.round(userArm.P9 - proArm.P9);
   const diffP10 = Math.round(userArm.P10 - proArm.P10);
 
-  const totalDiff = Math.abs(spineDiff) + Math.abs(diffP2) + Math.abs(diffP3) + Math.abs(diffP4) +
-                    Math.abs(diffP5) + Math.abs(diffP6) + Math.abs(diffP7) + Math.abs(diffP8) +
-                    Math.abs(diffP9) + Math.abs(diffP10);
-  const avgDiff = totalDiff / 10.0;
+  // 計算有效誤差 (忽略 +-10° 以內的模型合理誤差)
+  const effSpine = Math.max(0, Math.abs(spineDiff) - 10);
+  const effP2 = Math.max(0, Math.abs(diffP2) - 10);
+  const effP3 = Math.max(0, Math.abs(diffP3) - 10);
+  const effP4 = Math.max(0, Math.abs(diffP4) - 10);
+  const effP5 = Math.max(0, Math.abs(diffP5) - 10);
+  const effP6 = Math.max(0, Math.abs(diffP6) - 10);
+  const effP7 = Math.max(0, Math.abs(diffP7) - 10);
+  const effP8 = Math.max(0, Math.abs(diffP8) - 10);
+  const effP9 = Math.max(0, Math.abs(diffP9) - 10);
+  const effP10 = Math.max(0, Math.abs(diffP10) - 10);
 
-  // Tiger 相似度指標 (70% ~ 98%)
-  const similarity = Math.max(70, Math.min(98, Math.round(98 - avgDiff * 1.6)));
+  const totalEffDiff = effSpine + effP2 + effP3 + effP4 + effP5 + effP6 + effP7 + effP8 + effP9 + effP10;
+  const avgEffDiff = totalEffDiff / 10.0;
+
+  // Tiger 相似度指標 (忽略 +-10° 模型誤差後評分，75% ~ 99%)
+  const similarity = Math.max(75, Math.min(99, Math.round(98 - avgEffDiff * 1.5)));
   const score = similarity;
 
-  // P1 ~ P10 逐張詳細角度差異與直覺調整處方 (小標題以冒號分隔便於粗體渲染)
+  // P1 ~ P10 逐張詳細角度差異與直覺調整處方 (誤差 <= 10° 視為良好對齊)
   const phaseAdvice = [];
 
   // P1 準備站姿 (Address) - 專注脊椎傾角與中軸
   let p1Text = "";
-  if (Math.abs(spineDiff) <= 3) {
-    p1Text = `P1 站姿：脊椎前傾 ${userMetrics.spineAngle}° (與 Tiger 32° 完美對齊)。雙手自然垂於兩胯中軸，站姿穩定極佳！`;
-  } else if (spineDiff > 3) {
+  if (Math.abs(spineDiff) <= 10) {
+    p1Text = `P1 站姿：脊椎前傾 ${userMetrics.spineAngle}° (與 Tiger 32° 對齊良好)。雙手自然垂於兩胯中軸，站姿穩定極佳！`;
+  } else if (spineDiff > 10) {
     p1Text = `P1 站姿：脊椎前傾 ${userMetrics.spineAngle}° (差 +${spineDiff}°)。建議：上半身稍微挺起一些、骨盆微縮，避免站姿過度下趴。`;
   } else {
     p1Text = `P1 站姿：脊椎前傾 ${userMetrics.spineAngle}° (差 -${Math.abs(spineDiff)}°)。建議：上半身從臀部前傾微彎、膝蓋放鬆微曲，保持穩定重心。`;
@@ -996,9 +1016,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P2 起桿水平 (Takeaway) - 手軀夾角 (Tiger 40°)
   let p2Text = "";
-  if (Math.abs(diffP2) <= 4) {
-    p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (對齊 Tiger 40°)。手臂維持寬闊大三角形，引桿路徑極為標準！`;
-  } else if (diffP2 > 4) {
+  if (Math.abs(diffP2) <= 10) {
+    p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (與 Tiger 40° 對齊良好)。手臂維持寬闊大三角形，引桿路徑標準！`;
+  } else if (diffP2 > 10) {
     p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (差 +${diffP2}°)。建議：雙手勿太早向上抬起，手臂打直並以胸口轉動帶動手臂平順後移。`;
   } else {
     p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (差 -${Math.abs(diffP2)}°)。建議：起桿時手臂朝外後側充分引伸展開，避免雙手太貼近大腿。`;
@@ -1007,9 +1027,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P3 上桿半程 (Mid-Backswing) - 手軀夾角 (Tiger 77°)
   let p3Text = "";
-  if (Math.abs(diffP3) <= 5) {
-    p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (對齊 Tiger 77°)。手腕自然立腕延伸，上揚軌跡扎實！`;
-  } else if (diffP3 > 5) {
+  if (Math.abs(diffP3) <= 10) {
+    p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (與 Tiger 77° 對齊良好)。手腕自然立腕延伸，上揚軌跡扎實！`;
+  } else if (diffP3 > 10) {
     p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (差 +${diffP3}°)。建議：手部抬升稍高，注意保持左臂寬度，順勢立腕而勿過度上拉。`;
   } else {
     p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (差 -${Math.abs(diffP3)}°)。建議：雙手朝目標反方向推展並抬升手腕，維持寬闊揮桿圓弧。`;
@@ -1018,9 +1038,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P4 上桿頂點 (Top of Swing) - 手軀夾角 (Tiger 148°)
   let p4Text = "";
-  if (Math.abs(diffP4) <= 5) {
-    p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (對齊 Tiger 148°)。雙手高舉蓄力充分，頂點結構完美！`;
-  } else if (diffP4 < -5) {
+  if (Math.abs(diffP4) <= 10) {
+    p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (與 Tiger 148° 對齊良好)。雙手高舉蓄力充分，頂點結構優異！`;
+  } else if (diffP4 < -10) {
     p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (差 ${diffP4}°)。建議：頂點時雙手再往上抬高約 5 公分，左臂充分打直蓄滿爆發力。`;
   } else {
     p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (差 +${diffP4}°)。建議：雙手避免過度高舉造成過度揮桿(Over-swing)，保持下盤穩固。`;
@@ -1029,9 +1049,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P5 下桿半程 (Mid-Downswing) - 手軀夾角 (Tiger 104°)
   let p5Text = "";
-  if (Math.abs(diffP5) <= 5) {
-    p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (對齊 Tiger 104°)。下桿由下盤啟動沉手順暢，淺化路徑精準！`;
-  } else if (diffP5 > 5) {
+  if (Math.abs(diffP5) <= 10) {
+    p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (與 Tiger 104° 對齊良好)。下桿由下盤啟動沉手順暢，淺化路徑精準！`;
+  } else if (diffP5 > 10) {
     p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (差 +${diffP5}°)。建議：雙手主動順勢沉降、右肘貼近腰側下拉，避免由外向內切球(OTT)。`;
   } else {
     p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (差 -${Math.abs(diffP5)}°)。建議：下桿手臂維持釋放空間，避免雙手過早縮靠身體。`
@@ -1040,9 +1060,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P6 擊球前導 (Lag Delivery) - 手軀夾角 (Tiger 26°)
   let p6Text = "";
-  if (Math.abs(diffP6) <= 4) {
-    p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (對齊 Tiger 26°)。手腕維持極佳滯後延遲(Lag)，蓄力飽滿！`;
-  } else if (diffP6 > 4) {
+  if (Math.abs(diffP6) <= 10) {
+    p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (與 Tiger 26° 對齊良好)。手腕維持極佳滯後延遲(Lag)，蓄力飽滿！`;
+  } else if (diffP6 > 10) {
     p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (差 +${diffP6}°)。建議：雙手再向下沉壓至右大腿前，延遲翻腕釋放桿頭。`;
   } else {
     p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (差 -${Math.abs(diffP6)}°)。建議：維持手腕柔軟蓄力，保持手臂與桿身夾角順勢帶入擊球區。`;
@@ -1051,9 +1071,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P7 擊球瞬間 (Impact) - 手軀夾角 (Tiger 3°)
   let p7Text = "";
-  if (Math.abs(diffP7) <= 3) {
-    p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (對齊 Tiger 3°)。左手臂垂直貫穿擊球點，力量傳導極佳！`;
-  } else if (diffP7 > 3) {
+  if (Math.abs(diffP7) <= 10) {
+    p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (與 Tiger 3° 對齊良好)。左手臂垂直貫穿擊球點，力量傳導極佳！`;
+  } else if (diffP7 > 10) {
     p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (差 +${diffP7}°)。建議：擊球瞬間左手臂完全向下打直貫穿球位，雙手壓過球前。`;
   } else {
     p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (差 -${Math.abs(diffP7)}°)。建議：保持重心移向左側，左臂垂直順暢帶動桿頭掃過甜蜜點。`;
@@ -1062,9 +1082,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P8 送桿水平 (Follow-Through) - 手軀夾角 (Tiger 66°)
   let p8Text = "";
-  if (Math.abs(diffP8) <= 5) {
-    p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (對齊 Tiger 66°)。雙臂朝目標大圓弧送出，釋放延伸非常漂亮！`;
-  } else if (diffP8 < -5) {
+  if (Math.abs(diffP8) <= 10) {
+    p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (與 Tiger 66° 對齊良好)。雙臂朝目標大圓弧送出，釋放延伸非常漂亮！`;
+  } else if (diffP8 < -10) {
     p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (差 ${diffP8}°)。建議：擊球後雙手完全向目標側高拋送出，不要太早縮手肘(雞翅膀)。`;
   } else {
     p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (差 +${diffP8}°)。建議：手臂順著揮桿平面自然順勢延伸，胸口轉向目標。`;
@@ -1073,9 +1093,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P9 送桿半程 (Mid-Exit) - 手軀夾角 (Tiger 130°)
   let p9Text = "";
-  if (Math.abs(diffP9) <= 6) {
-    p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (對齊 Tiger 130°)。雙手順勢向上劃出漂亮出桿弧度！`;
-  } else if (diffP9 < -6) {
+  if (Math.abs(diffP9) <= 10) {
+    p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (與 Tiger 130° 對齊良好)。雙手順勢向上劃出漂亮出桿弧度！`;
+  } else if (diffP9 < -10) {
     p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (差 ${diffP9}°)。建議：送桿時手腕順勢向上抬升繞過左肩，胸口完全轉向正前方。`;
   } else {
     p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (差 +${diffP9}°)。出桿弧度寬闊，順勢放鬆將球桿繞至頸後完成收桿。`;
@@ -1084,9 +1104,9 @@ function compareWithPro(userMetrics, pro) {
 
   // P10 收桿完成 (Finish) - 手軀夾角 (Tiger 132°)
   let p10Text = "";
-  if (Math.abs(diffP10) <= 6) {
-    p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (對齊 Tiger 132°)。收桿手部位置優雅，重心完美踩穩左腳！`;
-  } else if (diffP10 < -6) {
+  if (Math.abs(diffP10) <= 10) {
+    p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (與 Tiger 132° 對齊良好)。收桿手部位置優雅，重心完美踩穩左腳！`;
+  } else if (diffP10 < -10) {
     p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (差 ${diffP10}°)。建議：收桿時雙手完整繞至左耳旁，身體直立挺胸面對目標。`;
   } else {
     p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (差 +${diffP10}°)。收桿高聳飽滿，維持左腳單腳平衡站定 3 秒。`;
