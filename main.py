@@ -65,13 +65,15 @@ class ReportUploadPayload(BaseModel):
     similarity: Optional[int] = 87
     spineAngle: Optional[int] = 32
     shoulderTurn: Optional[int] = 89
+    p4Arm: Optional[float] = 148.0
+    armAngles: Optional[dict] = {}
     imageBase64: Optional[str] = ""
     images: Optional[List[str]] = []
     p1Spine: Optional[float] = 32.0
-    p4Turn: Optional[float] = 88.0
-    p6Lag: Optional[float] = 34.0
-    p7Ext: Optional[float] = 5.5
-    p10Bal: Optional[str] = "94%"
+    p4Turn: Optional[float] = 148.0
+    p6Lag: Optional[float] = 26.0
+    p7Ext: Optional[float] = 3.0
+    p10Bal: Optional[Any] = 132.0
     diffs: Optional[dict] = {}
     stageAdvice: Optional[List[str]] = []
     summaryAdvice: Optional[List[str]] = []
@@ -126,12 +128,13 @@ async def upload_report(payload: ReportUploadPayload, request: Request):
             "score": payload.score,
             "similarity": payload.similarity or 87,
             "spine": payload.spineAngle or int(payload.p1Spine or 32),
-            "turn": payload.shoulderTurn or int(payload.p4Turn or 89),
+            "turn": int(payload.p4Arm or payload.p4Turn or 148),
             "p1Spine": payload.p1Spine or 32.0,
-            "p4Turn": payload.p4Turn or 88.0,
-            "p6Lag": payload.p6Lag or 34.0,
-            "p7Ext": payload.p7Ext or 5.5,
-            "p10Bal": payload.p10Bal or "94%",
+            "p4Arm": payload.p4Arm or 148.0,
+            "p4Turn": payload.p4Turn or 148.0,
+            "p6Lag": payload.p6Lag or 26.0,
+            "p7Ext": payload.p7Ext or 3.0,
+            "p10Bal": payload.p10Bal or 132.0,
             "diffs": payload.diffs or {},
             "stageAdvice": payload.stageAdvice or [],
             "advice": payload.stageAdvice or payload.summaryAdvice or [],
@@ -244,44 +247,82 @@ def build_entry_card() -> dict:
         }
     }
 
-def build_diagnosis_card(
-    score: int = 88,
-    similarity: int = 87,
-    spine: int = 32,
-    turn: int = 89,
-    diffs: dict = None,
-    advice: list = None
-) -> dict:
-    """生成 100% 免費的 Reply Tiger 職業標準揮桿診斷處方箋 (純動作建議與相似度對比)"""
-    diffs = diffs or {}
-    
-    # 差值字串處理
-    spine_diff_val = diffs.get("spineDiff", 0)
-    turn_diff_val = diffs.get("turnDiff", 0)
-    spine_diff_str = f" (差 {spine_diff_val:+d}°)" if spine_diff_val != 0 else " (完美)"
-    turn_diff_str = f" (差 {turn_diff_val:+d}°)" if turn_diff_val != 0 else " (完美)"
-    
-    # 逐張 P1~P10 動作調整處方排版
-    if advice and len(advice) > 0:
-        advice_contents = []
-        for adv in advice:
-            advice_contents.append({
-                "type": "text",
-                "text": f"• {adv}",
-                "size": "xxs",
-                "color": "#374151",
-                "wrap": True,
-                "margin": "xs"
-            })
-    else:
-        advice_contents = [{
+def format_advice_item(adv_str: str) -> dict:
+    """將處方箋拆分為【粗體小標題】與內文說明 (LINE Flex Message 粗體排版)"""
+    adv_clean = adv_str.lstrip("• ").strip()
+    title = ""
+    desc = adv_clean
+
+    if "：" in adv_clean:
+        parts = adv_clean.split("：", 1)
+        title = parts[0].strip() + "："
+        desc = parts[1].strip()
+    elif ":" in adv_clean:
+        parts = adv_clean.split(":", 1)
+        title = parts[0].strip() + ": "
+        desc = parts[1].strip()
+    elif "】" in adv_clean:
+        parts = adv_clean.split("】", 1)
+        title = parts[0].strip() + "】"
+        desc = parts[1].strip()
+
+    if title:
+        return {
             "type": "text",
-            "text": "• P1 站姿：保持脊椎前傾 32°，雙手自然垂直放鬆。\n• P4 頂點：轉身蓄力充分，雙手抬高維持大圓弧。\n• P7 擊球：左手臂打直貫穿，骨盆朝目標轉開！",
+            "wrap": True,
+            "size": "xxs",
+            "margin": "xs",
+            "contents": [
+                {
+                    "type": "span",
+                    "text": f"• {title} ",
+                    "weight": "bold",
+                    "color": "#111827"
+                },
+                {
+                    "type": "span",
+                    "text": desc,
+                    "color": "#374151"
+                }
+            ]
+        }
+    else:
+        return {
+            "type": "text",
+            "text": f"• {adv_clean}",
             "size": "xxs",
             "color": "#374151",
             "wrap": True,
             "margin": "xs"
-        }]
+        }
+
+def build_diagnosis_card(
+    score: int = 88,
+    similarity: int = 87,
+    spine: int = 32,
+    turn: int = 148,
+    diffs: dict = None,
+    advice: list = None
+) -> dict:
+    """生成 100% 免費的 Reply Tiger 職業標準揮桿診斷處方箋 (處方箋小標題粗體、手部夾角對比)"""
+    diffs = diffs or {}
+    
+    # 差值字串處理 (P1 脊椎前傾 與 P4 頂點手軀夾角)
+    spine_diff_val = diffs.get("spineDiff", 0)
+    p4_arm_diff_val = diffs.get("p4ArmDiff", diffs.get("turnDiff", 0))
+    spine_diff_str = f" (差 {spine_diff_val:+d}°)" if spine_diff_val != 0 else " (完美)"
+    p4_diff_str = f" (差 {p4_arm_diff_val:+d}°)" if p4_arm_diff_val != 0 else " (完美)"
+    
+    # 逐張 P1~P10 動作調整處方排版 (小標題加粗)
+    if advice and len(advice) > 0:
+        advice_contents = [format_advice_item(adv) for adv in advice]
+    else:
+        default_items = [
+            "P1 站姿：保持脊椎前傾 32°，雙手自然垂直放鬆，重心穩定極佳。",
+            "P4 上桿頂點：手軀夾角 148°，雙手高舉蓄力充分，頂點結構完美。",
+            "P7 擊球瞬間：手軀夾角 3°，左手臂垂直貫穿擊球點，力量傳導極佳！"
+        ]
+        advice_contents = [format_advice_item(adv) for adv in default_items]
 
     return {
         "type": "bubble",
@@ -317,7 +358,7 @@ def build_diagnosis_card(
                 },
                 {
                     "type": "text",
-                    "text": f"脊椎前傾 {spine}°{spine_diff_str} ｜ 頂點轉身 {turn}°{turn_diff_str}",
+                    "text": f"P1脊椎前傾 {spine}°{spine_diff_str} ｜ P4手軀夾角 {turn}°{p4_diff_str}",
                     "size": "xs",
                     "color": "#4B5563",
                     "margin": "xs"
@@ -490,7 +531,7 @@ def handle_text(event: MessageEvent):
     # 4. 喚醒與伺服器狀態查詢：Hi! Wake Up!
     elif "wake up" in normalized_text or "wake" in normalized_text:
         reply_messages = [
-            TextMessage(text="我在8:00~22:00都是醒著哦，可以直接點擊左下角“分析”使用，若在其他時段找我，請等我起床💤💤，我會馬上回覆你😀")
+            TextMessage(text="我在8:00~22:00都是醒著哦♥️，可以直接點擊左下角“分析”使用，若在其他時段找我，請等我起床💤💤，我會馬上回覆你😀")
         ]
 
     # 5. 彩蛋關鍵字：謝亞諺

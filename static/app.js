@@ -513,15 +513,26 @@ async function handleVideoFile(file) {
   });
 
   // 9. Tiger Woods 黃金標準即時比對與口語化動作提示 (compareWithPro)
-  const spineAngle = calcSpineAngle(wristData[p1Idx]?.landmarks, targetW, targetH);
+  const spineAngle = calcSpineAngle(wristData[p1Idx]?.landmarks);
   const shoulderTurn = calcShoulderTurn(wristData[p1Idx]?.landmarks, wristData[p4Idx]?.landmarks);
   
+  const armAngles = {
+    P1: calcArmTorsoAngle(wristData[p1Idx]?.landmarks),
+    P2: calcArmTorsoAngle(wristData[p2Idx]?.landmarks),
+    P3: calcArmTorsoAngle(wristData[p3Idx]?.landmarks),
+    P4: calcArmTorsoAngle(wristData[p4Idx]?.landmarks),
+    P5: calcArmTorsoAngle(wristData[p5Idx]?.landmarks),
+    P6: calcArmTorsoAngle(wristData[p6Idx]?.landmarks),
+    P7: calcArmTorsoAngle(wristData[p7Idx]?.landmarks),
+    P8: calcArmTorsoAngle(wristData[p8Idx]?.landmarks),
+    P9: calcArmTorsoAngle(wristData[p9Idx]?.landmarks),
+    P10: calcArmTorsoAngle(wristData[p10Idx]?.landmarks),
+  };
+
   const userMetrics = {
     spineAngle,
     shoulderTurn,
-    lagAngle: 34,
-    impactExt: 5.5,
-    finishBal: 94
+    armAngles
   };
 
   const comparison = compareWithPro(userMetrics, proBenchmark);
@@ -532,7 +543,7 @@ async function handleVideoFile(file) {
   const spineEl = document.getElementById("p1-spine");
   if (spineEl) spineEl.innerText = `${spineAngle}°`;
   const turnEl = document.getElementById("p4-turn");
-  if (turnEl) turnEl.innerText = `${shoulderTurn}°`;
+  if (turnEl) turnEl.innerText = `${armAngles.P4}°`;
   
   document.getElementById("score-val").innerHTML = `${similarity}<span style="font-size: 18px; color: #71717A;">%</span>`;
   document.getElementById("score-grade").innerText = `Tiger 相似度 ${similarity}% (${similarity >= 88 ? '職業級對齊' : '進階微調建議'})`;
@@ -566,11 +577,13 @@ async function handleVideoFile(file) {
     similarity,
     spineAngle,
     shoulderTurn,
+    armAngles,
     p1Spine: spineAngle,
-    p4Turn: shoulderTurn,
-    p6Lag: 34.0,
-    p7Ext: 5.5,
-    p10Bal: "94%",
+    p4Turn: armAngles.P4,
+    p4Arm: armAngles.P4,
+    p6Lag: armAngles.P6,
+    p7Ext: armAngles.P7,
+    p10Bal: armAngles.P10,
     diffs: comparison.diffs,
     stageAdvice: adviceList,
     summaryAdvice: adviceList,
@@ -891,6 +904,32 @@ function calcSpineAngle(landmarks) {
   return Math.min(50, Math.max(20, deg));
 }
 
+// 計算手部/手臂與身體軀幹夾角 (Arm-Torso Angle)
+function calcArmTorsoAngle(landmarks) {
+  if (!landmarks || !landmarks[11] || !landmarks[12] || !landmarks[23] || !landmarks[24] || !landmarks[15] || !landmarks[16]) {
+    return 40;
+  }
+  const shX = (landmarks[11].x + landmarks[12].x) / 2.0;
+  const shY = (landmarks[11].y + landmarks[12].y) / 2.0;
+  const hipX = (landmarks[23].x + landmarks[24].x) / 2.0;
+  const hipY = (landmarks[23].y + landmarks[24].y) / 2.0;
+  const wX = (landmarks[15].x + landmarks[16].x) / 2.0;
+  const wY = (landmarks[15].y + landmarks[16].y) / 2.0;
+
+  const vTorsoX = hipX - shX;
+  const vTorsoY = hipY - shY;
+  const vArmX = wX - shX;
+  const vArmY = wY - shY;
+
+  const dot = vTorsoX * vArmX + vTorsoY * vArmY;
+  const magT = Math.hypot(vTorsoX, vTorsoY);
+  const magA = Math.hypot(vArmX, vArmY);
+
+  if (magT < 0.001 || magA < 0.001) return 40;
+  const cosVal = Math.max(-1.0, Math.min(1.0, dot / (magT * magA)));
+  return Math.round(Math.acos(cosVal) * (180 / Math.PI));
+}
+
 function calcShoulderTurn(p1Lm, p4Lm) {
   if (!p1Lm || !p4Lm) return 88;
   const dx1 = p1Lm[12].x - p1Lm[11].x;
@@ -900,84 +939,158 @@ function calcShoulderTurn(p1Lm, p4Lm) {
 }
 
 // 職業選手標準即時比對與 P1~P10 逐張動作調整提示詞 (compareWithPro)
+// 除了 P1 比對脊椎站姿角度外，其餘 P2~P10 一律專注比對手部/手臂與身體夾角 (Arm-Torso Angle)
 function compareWithPro(userMetrics, pro) {
-  const proMetrics = (pro && pro.metrics) ? pro.metrics : {
-    spine_angle: 32,
-    shoulder_turn: 92,
-    lag_angle: 34,
-    impact_extension: 5.5,
-    finish_balance: 95
+  const proSpine = (pro && pro.metrics && pro.metrics.spine_angle) ? pro.metrics.spine_angle : 32;
+  const proArm = {
+    P1: 3,
+    P2: 40,
+    P3: 77,
+    P4: 148,
+    P5: 104,
+    P6: 26,
+    P7: 3,
+    P8: 66,
+    P9: 130,
+    P10: 132
   };
 
-  const spineDiff = Math.round(userMetrics.spineAngle - proMetrics.spine_angle);
-  const turnDiff = Math.round(userMetrics.shoulderTurn - proMetrics.shoulder_turn);
-  const lagDiff = Math.round(userMetrics.lagAngle - proMetrics.lag_angle);
-  const extDiff = Math.round((userMetrics.impactExt - proMetrics.impact_extension) * 10) / 10;
-  const balDiff = Math.round(userMetrics.finishBal - proMetrics.finish_balance);
+  const userArm = userMetrics.armAngles || {
+    P1: 3, P2: 40, P3: 77, P4: 148, P5: 104,
+    P6: 26, P7: 3, P8: 66, P9: 130, P10: 132
+  };
 
-  const absSpine = Math.abs(spineDiff);
-  const absTurn = Math.abs(turnDiff);
-  const absLag = Math.abs(lagDiff);
+  const spineDiff = Math.round(userMetrics.spineAngle - proSpine);
+  const diffP2 = Math.round(userArm.P2 - proArm.P2);
+  const diffP3 = Math.round(userArm.P3 - proArm.P3);
+  const diffP4 = Math.round(userArm.P4 - proArm.P4);
+  const diffP5 = Math.round(userArm.P5 - proArm.P5);
+  const diffP6 = Math.round(userArm.P6 - proArm.P6);
+  const diffP7 = Math.round(userArm.P7 - proArm.P7);
+  const diffP8 = Math.round(userArm.P8 - proArm.P8);
+  const diffP9 = Math.round(userArm.P9 - proArm.P9);
+  const diffP10 = Math.round(userArm.P10 - proArm.P10);
 
-  // Tiger 相似度指標
-  const similarity = Math.max(72, Math.min(98, Math.round(96 - absSpine * 0.9 - absTurn * 0.7 - absLag * 0.6)));
-  const score = Math.max(75, Math.min(97, Math.round(88 + (absTurn <= 7 ? 4 : -3) + (absSpine <= 5 ? 3 : -2) + (absLag <= 5 ? 2 : -2))));
+  const totalDiff = Math.abs(spineDiff) + Math.abs(diffP2) + Math.abs(diffP3) + Math.abs(diffP4) +
+                    Math.abs(diffP5) + Math.abs(diffP6) + Math.abs(diffP7) + Math.abs(diffP8) +
+                    Math.abs(diffP9) + Math.abs(diffP10);
+  const avgDiff = totalDiff / 10.0;
 
-  // P1 ~ P10 逐張詳細角度差異與直覺調整處方 (10-Phase Detailed Cues)
+  // Tiger 相似度指標 (70% ~ 98%)
+  const similarity = Math.max(70, Math.min(98, Math.round(98 - avgDiff * 1.6)));
+  const score = similarity;
+
+  // P1 ~ P10 逐張詳細角度差異與直覺調整處方 (小標題以冒號分隔便於粗體渲染)
   const phaseAdvice = [];
 
-  // P1 準備站姿 (Address)
+  // P1 準備站姿 (Address) - 專注脊椎傾角與中軸
   let p1Text = "";
-  if (absSpine <= 3) {
-    p1Text = `P1 站姿：脊椎 ${userMetrics.spineAngle}° (與 Tiger 32° 完美對齊)。雙手自然垂於兩胯中軸，站姿穩定極佳！`;
+  if (Math.abs(spineDiff) <= 3) {
+    p1Text = `P1 站姿：脊椎前傾 ${userMetrics.spineAngle}° (與 Tiger 32° 完美對齊)。雙手自然垂於兩胯中軸，站姿穩定極佳！`;
   } else if (spineDiff > 3) {
-    p1Text = `P1 站姿：脊椎 ${userMetrics.spineAngle}° (差 +${spineDiff}°)。建議：上半身稍微挺起一些、骨盆微縮，避免站姿過度下趴。`;
+    p1Text = `P1 站姿：脊椎前傾 ${userMetrics.spineAngle}° (差 +${spineDiff}°)。建議：上半身稍微挺起一些、骨盆微縮，避免站姿過度下趴。`;
   } else {
-    p1Text = `P1 站姿：脊椎 ${userMetrics.spineAngle}° (差 -${Math.abs(spineDiff)}°)。建議：上半身從臀部前傾微彎、膝蓋放鬆微曲，保持穩定重心。`;
+    p1Text = `P1 站姿：脊椎前傾 ${userMetrics.spineAngle}° (差 -${Math.abs(spineDiff)}°)。建議：上半身從臀部前傾微彎、膝蓋放鬆微曲，保持穩定重心。`;
   }
   phaseAdvice.push(p1Text);
 
-  // P2 起桿水平 (Takeaway)
-  let p2Text = `P2 起桿：手臂維持一體大三角形。建議：起桿時左手臂打直，以胸口轉動帶動雙手一體後移，保持寬闊圓弧。`;
+  // P2 起桿水平 (Takeaway) - 手軀夾角 (Tiger 40°)
+  let p2Text = "";
+  if (Math.abs(diffP2) <= 4) {
+    p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (對齊 Tiger 40°)。手臂維持寬闊大三角形，引桿路徑極為標準！`;
+  } else if (diffP2 > 4) {
+    p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (差 +${diffP2}°)。建議：雙手勿太早向上抬起，手臂打直並以胸口轉動帶動手臂平順後移。`;
+  } else {
+    p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (差 -${Math.abs(diffP2)}°)。建議：起桿時手臂朝外後側充分引伸展開，避免雙手太貼近大腿。`;
+  }
   phaseAdvice.push(p2Text);
 
-  // P3 上桿半程 (Mid-Backswing)
-  let p3Text = `P3 半程：手腕順暢引桿上立。建議：雙手朝目標反方向充分後推延伸，左手腕順勢自然上立建立揮桿寬度。`;
+  // P3 上桿半程 (Mid-Backswing) - 手軀夾角 (Tiger 77°)
+  let p3Text = "";
+  if (Math.abs(diffP3) <= 5) {
+    p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (對齊 Tiger 77°)。手腕自然立腕延伸，上揚軌跡扎實！`;
+  } else if (diffP3 > 5) {
+    p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (差 +${diffP3}°)。建議：手部抬升稍高，注意保持左臂寬度，順勢立腕而勿過度上拉。`;
+  } else {
+    p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (差 -${Math.abs(diffP3)}°)。建議：雙手朝目標反方向推展並抬升手腕，維持寬闊揮桿圓弧。`;
+  }
   phaseAdvice.push(p3Text);
 
-  // P4 上桿頂點 (Top of Swing)
+  // P4 上桿頂點 (Top of Swing) - 手軀夾角 (Tiger 148°)
   let p4Text = "";
-  if (absTurn <= 5) {
-    p4Text = `P4 頂點：轉身量 ${userMetrics.shoulderTurn}° (對齊 Tiger 92°)。頂點轉身蓄力充足，身體中軸穩定不晃動！`;
-  } else if (turnDiff < -5) {
-    p4Text = `P4 頂點：轉身量 ${userMetrics.shoulderTurn}° (差 ${turnDiff}°)。建議：頂點時雙手再往上抬高約 5 公分，左肩膀多轉動對齊下巴蓄力。`;
+  if (Math.abs(diffP4) <= 5) {
+    p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (對齊 Tiger 148°)。雙手高舉蓄力充分，頂點結構完美！`;
+  } else if (diffP4 < -5) {
+    p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (差 ${diffP4}°)。建議：頂點時雙手再往上抬高約 5 公分，左臂充分打直蓄滿爆發力。`;
   } else {
-    p4Text = `P4 頂點：轉身量 ${userMetrics.shoulderTurn}° (差 +${turnDiff}°)。轉身深度極佳，頂點注意保持下盤右膝穩定支撐。`;
+    p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (差 +${diffP4}°)。建議：雙手避免過度高舉造成過度揮桿(Over-swing)，保持下盤穩固。`;
   }
   phaseAdvice.push(p4Text);
 
-  // P5 下桿半程 (Mid-Downswing)
-  let p5Text = `P5 下桿：下桿淺化路徑。建議：下桿瞬間右手肘主動貼近右腰側順勢下砍，避免肩膀過早外翻由外向內切球。`;
+  // P5 下桿半程 (Mid-Downswing) - 手軀夾角 (Tiger 104°)
+  let p5Text = "";
+  if (Math.abs(diffP5) <= 5) {
+    p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (對齊 Tiger 104°)。下桿由下盤啟動沉手順暢，淺化路徑精準！`;
+  } else if (diffP5 > 5) {
+    p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (差 +${diffP5}°)。建議：雙手主動順勢沉降、右肘貼近腰側下拉，避免由外向內切球(OTT)。`;
+  } else {
+    p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (差 -${Math.abs(diffP5)}°)。建議：下桿手臂維持釋放空間，避免雙手過早縮靠身體。`
+  }
   phaseAdvice.push(p5Text);
 
-  // P6 擊球前導 (Lag Delivery)
-  let p6Text = `P6 蓄力：手腕延遲釋放角 34°。建議：手腕維持蓄力下壓至右大腿前，手肘保持微彎，不要太早翻腕釋放桿頭。`;
+  // P6 擊球前導 (Lag Delivery) - 手軀夾角 (Tiger 26°)
+  let p6Text = "";
+  if (Math.abs(diffP6) <= 4) {
+    p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (對齊 Tiger 26°)。手腕維持極佳滯後延遲(Lag)，蓄力飽滿！`;
+  } else if (diffP6 > 4) {
+    p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (差 +${diffP6}°)。建議：雙手再向下沉壓至右大腿前，延遲翻腕釋放桿頭。`;
+  } else {
+    p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (差 -${Math.abs(diffP6)}°)。建議：維持手腕柔軟蓄力，保持手臂與桿身夾角順勢帶入擊球區。`;
+  }
   phaseAdvice.push(p6Text);
 
-  // P7 擊球瞬間 (Impact)
-  let p7Text = `P7 擊球：左手臂垂直貫穿。建議：擊球瞬間左手臂完全打直貫穿球位，骨盆順勢朝目標方向轉開釋放爆發力！`;
+  // P7 擊球瞬間 (Impact) - 手軀夾角 (Tiger 3°)
+  let p7Text = "";
+  if (Math.abs(diffP7) <= 3) {
+    p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (對齊 Tiger 3°)。左手臂垂直貫穿擊球點，力量傳導極佳！`;
+  } else if (diffP7 > 3) {
+    p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (差 +${diffP7}°)。建議：擊球瞬間左手臂完全向下打直貫穿球位，雙手壓過球前。`;
+  } else {
+    p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (差 -${Math.abs(diffP7)}°)。建議：保持重心移向左側，左臂垂直順暢帶動桿頭掃過甜蜜點。`;
+  }
   phaseAdvice.push(p7Text);
 
-  // P8 送桿水平 (Follow-Through)
-  let p8Text = `P8 送桿：雙臂大圓弧延伸。建議：擊球後雙臂朝目標方向完全伸直送到底，不要過早收手或縮手肘。`;
+  // P8 送桿水平 (Follow-Through) - 手軀夾角 (Tiger 66°)
+  let p8Text = "";
+  if (Math.abs(diffP8) <= 5) {
+    p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (對齊 Tiger 66°)。雙臂朝目標大圓弧送出，釋放延伸非常漂亮！`;
+  } else if (diffP8 < -5) {
+    p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (差 ${diffP8}°)。建議：擊球後雙手完全向目標側高拋送出，不要太早縮手肘(雞翅膀)。`;
+  } else {
+    p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (差 +${diffP8}°)。建議：手臂順著揮桿平面自然順勢延伸，胸口轉向目標。`;
+  }
   phaseAdvice.push(p8Text);
 
-  // P9 送桿半程 (Mid-Exit)
-  let p9Text = `P9 延展：出桿向上延展軌跡。建議：雙手順勢向上順暢延展繞行，胸口完全轉向正對目標方向。`;
+  // P9 送桿半程 (Mid-Exit) - 手軀夾角 (Tiger 130°)
+  let p9Text = "";
+  if (Math.abs(diffP9) <= 6) {
+    p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (對齊 Tiger 130°)。雙手順勢向上劃出漂亮出桿弧度！`;
+  } else if (diffP9 < -6) {
+    p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (差 ${diffP9}°)。建議：送桿時手腕順勢向上抬升繞過左肩，胸口完全轉向正前方。`;
+  } else {
+    p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (差 +${diffP9}°)。出桿弧度寬闊，順勢放鬆將球桿繞至頸後完成收桿。`;
+  }
   phaseAdvice.push(p9Text);
 
-  // P10 收桿完成 (Finish)
-  let p10Text = `P10 收桿：重心平衡移轉。建議：收桿時將全身重心 100% 踩穩在左腳站定，右腳跟完全離地踮起，維持優雅站姿。`;
+  // P10 收桿完成 (Finish) - 手軀夾角 (Tiger 132°)
+  let p10Text = "";
+  if (Math.abs(diffP10) <= 6) {
+    p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (對齊 Tiger 132°)。收桿手部位置優雅，重心完美踩穩左腳！`;
+  } else if (diffP10 < -6) {
+    p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (差 ${diffP10}°)。建議：收桿時雙手完整繞至左耳旁，身體直立挺胸面對目標。`;
+  } else {
+    p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (差 +${diffP10}°)。收桿高聳飽滿，維持左腳單腳平衡站定 3 秒。`;
+  }
   phaseAdvice.push(p10Text);
 
   return {
@@ -985,10 +1098,16 @@ function compareWithPro(userMetrics, pro) {
     similarity,
     diffs: {
       spineDiff,
-      turnDiff,
-      lagDiff,
-      extDiff,
-      balDiff
+      p4ArmDiff: diffP4,
+      p2Diff: diffP2,
+      p3Diff: diffP3,
+      p4Diff: diffP4,
+      p5Diff: diffP5,
+      p6Diff: diffP6,
+      p7Diff: diffP7,
+      p8Diff: diffP8,
+      p9Diff: diffP9,
+      p10Diff: diffP10
     },
     stageAdvice: phaseAdvice,
     phaseAdvice
