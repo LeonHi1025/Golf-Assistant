@@ -4,7 +4,7 @@ import json
 import time
 import base64
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -62,9 +62,19 @@ def get_app_url() -> str:
 class ReportUploadPayload(BaseModel):
     userId: Optional[str] = ""
     score: int = 88
-    spineAngle: int = 32
-    shoulderTurn: int = 89
-    imageBase64: str
+    similarity: Optional[int] = 87
+    spineAngle: Optional[int] = 32
+    shoulderTurn: Optional[int] = 89
+    imageBase64: Optional[str] = ""
+    images: Optional[List[str]] = []
+    p1Spine: Optional[float] = 32.0
+    p4Turn: Optional[float] = 88.0
+    p6Lag: Optional[float] = 34.0
+    p7Ext: Optional[float] = 5.5
+    p10Bal: Optional[str] = "94%"
+    diffs: Optional[dict] = {}
+    stageAdvice: Optional[List[str]] = []
+    summaryAdvice: Optional[List[str]] = []
 
 @app.get("/api/config")
 def get_config(request: Request):
@@ -82,7 +92,7 @@ def get_config(request: Request):
 
 @app.post("/api/upload_report")
 async def upload_report(payload: ReportUploadPayload, request: Request):
-    """接收前端 Edge AI 產生的 3 影格骨架合成照片與動作指標"""
+    """接收前端 Edge AI 產生的 1+3+3+3 骨架合成照片組與 Tiger 十階段比對指標"""
     global latest_global_report, latest_server_host
     
     # 紀錄最新伺服器網址供 LINE 圖片下載
@@ -92,23 +102,39 @@ async def upload_report(payload: ReportUploadPayload, request: Request):
     latest_server_host = base_url
 
     try:
-        # 解碼 Base64 圖片
-        img_str = re.sub(r"^data:image/.+;base64,", "", payload.imageBase64)
-        img_bytes = base64.b64decode(img_str)
-        
         report_id = f"report_{int(time.time())}_{uuid.uuid4().hex[:6]}"
-        filename = f"{report_id}.jpg"
-        filepath = os.path.join(REPORTS_DIR, filename)
-
-        with open(filepath, "wb") as f:
-            f.write(img_bytes)
+        filenames = []
+        
+        # 判斷是否為 3 張連格照片組 (1+3+3+3)
+        raw_images = payload.images if (payload.images and len(payload.images) > 0) else ([payload.imageBase64] if payload.imageBase64 else [])
+        
+        for idx, img_b64 in enumerate(raw_images):
+            if not img_b64:
+                continue
+            img_str = re.sub(r"^data:image/.+;base64,", "", img_b64)
+            img_bytes = base64.b64decode(img_str)
+            fn = f"{report_id}_{idx+1}.jpg" if len(raw_images) > 1 else f"{report_id}.jpg"
+            fp = os.path.join(REPORTS_DIR, fn)
+            with open(fp, "wb") as f:
+                f.write(img_bytes)
+            filenames.append(fn)
 
         report_data = {
             "report_id": report_id,
-            "filename": filename,
+            "filename": filenames[0] if filenames else "",
+            "filenames": filenames,
             "score": payload.score,
-            "spine": payload.spineAngle,
-            "turn": payload.shoulderTurn,
+            "similarity": payload.similarity or 87,
+            "spine": payload.spineAngle or int(payload.p1Spine or 32),
+            "turn": payload.shoulderTurn or int(payload.p4Turn or 89),
+            "p1Spine": payload.p1Spine or 32.0,
+            "p4Turn": payload.p4Turn or 88.0,
+            "p6Lag": payload.p6Lag or 34.0,
+            "p7Ext": payload.p7Ext or 5.5,
+            "p10Bal": payload.p10Bal or "94%",
+            "diffs": payload.diffs or {},
+            "stageAdvice": payload.stageAdvice or [],
+            "advice": payload.stageAdvice or payload.summaryAdvice or [],
             "created_at": time.time()
         }
 
@@ -121,9 +147,14 @@ async def upload_report(payload: ReportUploadPayload, request: Request):
         # 定期清理舊圖片 (保留最新的 40 張)
         cleanup_old_reports()
 
-        img_url = f"{latest_server_host}/static/reports/{filename}"
-        print(f"✅ 成功儲存骨架分析照片: {img_url} (使用者: {user_id or '匿名'})")
-        return {"status": "ok", "reportId": report_id, "imageUrl": img_url}
+        image_urls = [f"{latest_server_host}/static/reports/{fn}" for fn in filenames]
+        print(f"✅ 成功儲存 Tiger 對比骨架組 ({len(filenames)}張): {image_urls} (使用者: {user_id or '匿名'})")
+        return {
+            "status": "ok",
+            "reportId": report_id,
+            "imageUrl": image_urls[0] if image_urls else "",
+            "imageUrls": image_urls
+        }
 
     except Exception as e:
         print(f"❌ 儲存骨架報告失敗: {e}")
@@ -157,17 +188,17 @@ def build_entry_card() -> dict:
                     "text": "🏌️ GOLF SWING AI",
                     "weight": "bold",
                     "size": "xl",
-                    "color": "#00E676"
+                    "color": "#111111"
                 },
                 {
                     "type": "text",
-                    "text": "手機邊緣晶片即時運算・零等待 0% 伺服器負載",
+                    "text": "Tiger Woods 職業標準 P1~P10 揮桿對比分析",
                     "size": "xs",
-                    "color": "#81C784",
+                    "color": "#6B7280",
                     "margin": "xs"
                 }
             ],
-            "backgroundColor": "#0d1f18",
+            "backgroundColor": "#F4F5F7",
             "paddingAll": "20px"
         },
         "body": {
@@ -176,22 +207,22 @@ def build_entry_card() -> dict:
             "contents": [
                 {
                     "type": "text",
-                    "text": "智慧分析 P1 / P4 / P7 關鍵動作",
+                    "text": "自動對齊 Tiger 十階段揮桿動作",
                     "weight": "bold",
                     "size": "md",
-                    "color": "#FFFFFF"
+                    "color": "#111111"
                 },
                 {
                     "type": "text",
-                    "text": "點擊下方按鈕開啟分析儀，選取 3 秒影片即可透過手機 GPU 在 2 秒內完成骨架擷取與動作評分！",
+                    "text": "即時診斷起桿、頂點蓄力、下桿延遲與擊球釋放差值，給予專屬改善處方！",
                     "size": "xs",
-                    "color": "#B0BEC5",
+                    "color": "#4B5563",
                     "wrap": True,
-                    "margin": "md"
+                    "margin": "sm"
                 }
             ],
-            "backgroundColor": "#132a21",
-            "paddingAll": "20px"
+            "backgroundColor": "#FFFFFF",
+            "paddingAll": "16px"
         },
         "footer": {
             "type": "box",
@@ -200,24 +231,58 @@ def build_entry_card() -> dict:
                 {
                     "type": "button",
                     "style": "primary",
-                    "color": "#00E676",
+                    "color": "#18181B",
                     "action": {
                         "type": "uri",
-                        "label": "🚀 立即打開揮桿分析儀",
+                        "label": "🚀 打開分析儀",
                         "uri": get_app_url()
                     }
                 }
             ],
-            "backgroundColor": "#0d1f18",
+            "backgroundColor": "#FFFFFF",
             "paddingAll": "16px"
         }
     }
 
-from fastapi.responses import RedirectResponse, Response
-
-def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> dict:
-    """生成 100% 免費的 Reply 專業教練診斷書 (簡潔白底黑字卡片)"""
+def build_diagnosis_card(
+    score: int = 88,
+    similarity: int = 87,
+    spine: int = 32,
+    turn: int = 89,
+    diffs: dict = None,
+    advice: list = None
+) -> dict:
+    """生成 100% 免費的 Reply Tiger 職業標準揮桿診斷處方箋 (簡潔白底黑字卡片)"""
     grade = "Tour Pro 級" if score >= 90 else ("Semi-Pro 級" if score >= 85 else "業餘進階級")
+    diffs = diffs or {}
+    
+    # 差值字串處理
+    spine_diff_val = diffs.get("spineDiff", 0)
+    turn_diff_val = diffs.get("turnDiff", 0)
+    spine_diff_str = f" (差 {spine_diff_val:+d}°)" if spine_diff_val != 0 else " (完美)"
+    turn_diff_str = f" (差 {turn_diff_val:+d}°)" if turn_diff_val != 0 else " (完美)"
+    
+    # 改善建議
+    if advice and len(advice) > 0:
+        advice_contents = []
+        for adv in advice:
+            advice_contents.append({
+                "type": "text",
+                "text": str(adv),
+                "size": "xxs",
+                "color": "#374151",
+                "wrap": True,
+                "margin": "xs"
+            })
+    else:
+        advice_contents = [{
+            "type": "text",
+            "text": "1. 保持下桿時頭部穩定，維持下桿延遲釋放 (Lag)。\n2. 擊球瞬間保持左臂延展，釋放桿頭速度更具穿透力！",
+            "size": "xxs",
+            "color": "#374151",
+            "wrap": True,
+            "margin": "xs"
+        }]
 
     return {
         "type": "bubble",
@@ -229,11 +294,35 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> di
             "paddingAll": "20px",
             "contents": [
                 {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": f"⛳ 動作評定：{grade}",
+                            "weight": "bold",
+                            "size": "md",
+                            "color": "#111111",
+                            "flex": 7
+                        },
+                        {
+                            "type": "text",
+                            "text": f"{score}分",
+                            "weight": "bold",
+                            "size": "lg",
+                            "color": "#111111",
+                            "align": "end",
+                            "flex": 3
+                        }
+                    ]
+                },
+                {
                     "type": "text",
-                    "text": f"⛳ 動作評定：{grade} ({score}分)",
+                    "text": f"🐅 Tiger 職業標準相似度：{similarity}%",
+                    "size": "xs",
+                    "color": "#4B5563",
                     "weight": "bold",
-                    "size": "lg",
-                    "color": "#111111"
+                    "margin": "xs"
                 },
                 {"type": "separator", "margin": "md", "color": "#E5E7EB"},
                 {
@@ -246,44 +335,41 @@ def build_diagnosis_card(score: int = 88, spine: int = 32, turn: int = 89) -> di
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "• P1 準備站姿", "color": "#4B5563", "size": "sm", "flex": 4},
-                                {"type": "text", "text": f"脊椎傾角 {spine}° (標準穩定)", "color": "#111111", "size": "sm", "weight": "bold", "flex": 6}
+                                {"type": "text", "text": "• P1~P3 上揚", "color": "#4B5563", "size": "xs", "flex": 4},
+                                {"type": "text", "text": f"脊椎 {spine}°{spine_diff_str}", "color": "#111111", "size": "xs", "weight": "bold", "flex": 6}
                             ]
                         },
                         {
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "• P4 上桿頂點", "color": "#4B5563", "size": "sm", "flex": 4},
-                                {"type": "text", "text": f"旋轉幅度 {turn}° (蓄力充足)", "color": "#111111", "size": "sm", "weight": "bold", "flex": 6}
+                                {"type": "text", "text": "• P4~P7 擊球", "color": "#4B5563", "size": "xs", "flex": 4},
+                                {"type": "text", "text": f"轉身 {turn}°{turn_diff_str}", "color": "#111111", "size": "xs", "weight": "bold", "flex": 6}
                             ]
                         },
                         {
                             "type": "box",
                             "layout": "baseline",
                             "contents": [
-                                {"type": "text", "text": "• P7 擊球瞬間", "color": "#4B5563", "size": "sm", "flex": 4},
-                                {"type": "text", "text": "核心完全釋放・加速流暢", "color": "#059669", "size": "sm", "weight": "bold", "flex": 6}
+                                {"type": "text", "text": "• P8~P10 送出", "color": "#4B5563", "size": "xs", "flex": 4},
+                                {"type": "text", "text": "核心完全釋放・平衡收桿", "color": "#059669", "size": "xs", "weight": "bold", "flex": 6}
                             ]
                         }
                     ]
                 },
-                {"type": "separator", "margin": "lg", "color": "#E5E7EB"},
+                {"type": "separator", "margin": "md", "color": "#E5E7EB"},
                 {
                     "type": "text",
-                    "text": "💡 本次建議：",
+                    "text": "💡 Tiger 對比改進處方：",
                     "weight": "bold",
-                    "size": "sm",
+                    "size": "xs",
                     "color": "#111111",
-                    "margin": "md"
+                    "margin": "sm"
                 },
                 {
-                    "type": "text",
-                    "text": "1. 保持下桿時頭部穩定，避免重心過早前移。\n2. 擊球瞬間保持左臂延展，釋放桿頭速度更具穿透力！",
-                    "size": "xs",
-                    "color": "#374151",
-                    "wrap": True,
-                    "margin": "xs"
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": advice_contents
                 }
             ]
         },
@@ -354,32 +440,36 @@ def handle_text(event: MessageEvent):
         
         reply_messages = []
         
-        if report and report.get("filename"):
+        if report and (report.get("filenames") or report.get("filename")):
             score = report.get("score", 88)
+            similarity = report.get("similarity", 87)
             spine = report.get("spine", 32)
             turn = report.get("turn", 89)
-            filename = report.get("filename")
+            advice = report.get("advice", [])
+            filenames = report.get("filenames") or ([report.get("filename")] if report.get("filename") else [])
             
             # 組成 HTTPS 圖片網址
             base_url = SERVER_BASE_URL or latest_server_host or "https://golf-assistant.onrender.com"
-            img_url = f"{base_url.rstrip('/')}/static/reports/{filename}"
             
-            # 1. 骨架分析照片 (發送一次獨立大圖)
-            reply_messages.append(
-                ImageMessage(
-                    original_content_url=img_url,
-                    preview_image_url=img_url
-                )
-            )
-            
-            # 2. 揮桿診斷處方箋 Flex Card (純文字與指標)
-            flex_json = build_diagnosis_card(score=score, spine=spine, turn=turn)
+            # 1. 揮桿診斷處方箋 Flex Card (置頂診斷書)
+            diffs = report.get("diffs", {})
+            flex_json = build_diagnosis_card(score=score, similarity=similarity, spine=spine, turn=turn, diffs=diffs, advice=advice)
             reply_messages.append(
                 FlexMessage(
-                    alt_text="⛳ 您的專屬高爾夫揮桿診斷處方箋已出爐！",
+                    alt_text="⛳ 您的專屬 Tiger 職業標準揮桿診斷處方箋已出爐！",
                     contents=FlexContainer.from_json(json.dumps(flex_json))
                 )
             )
+
+            # 2. 1+3+3+3 骨架分析照片組 (依序發送 3 組 3 連格照片)
+            for fn in filenames:
+                img_url = f"{base_url.rstrip('/')}/static/reports/{fn}"
+                reply_messages.append(
+                    ImageMessage(
+                        original_content_url=img_url,
+                        preview_image_url=img_url
+                    )
+                )
         else:
             # 若無先前分析記錄，發送預設處方箋
             flex_json = build_diagnosis_card()

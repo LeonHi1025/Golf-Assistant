@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 test_swing.mp4
 test_result.jpg
+static/reports/

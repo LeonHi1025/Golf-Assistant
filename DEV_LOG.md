@@ -47,7 +47,9 @@ sequenceDiagram
 3. **自動磁碟垃圾回收防護 (Disk Safeguard)**：
    - 伺服器常態只保留最新 30 張分析截圖，超過 40 張自動刪除舊檔，硬碟空間永遠鎖定在 **5 MB 以內**。
 4. **手機端快取破壞策略 (Cache Busting)**：
-   - 引入 `app.js?v=20260905_2` 與 Service Worker `golf-pwa-v2`，確保手機 LINE 內嵌瀏覽器隨時載入最新程式碼。
+   - 引入 `app.js?v=20260905_4` 與 Service Worker `golf-pwa-v2`，確保手機 LINE 內嵌瀏覽器隨時載入最新程式碼。
+5. **定時喚醒與防休眠 (Keep-Alive CronJob)**：
+   - 設定 CronJob 每 10 分鐘自動發送 HTTP Ping (Tick)，防止 Render 免費實例因無訪問進入休眠，保持 24/7 隨時熱機即時回覆。
 
 ---
 
@@ -96,6 +98,40 @@ sequenceDiagram
 - **解法**：
   - 更新 `static/index.html` 樣式、Meta 標籤與 Canvas 動畫繪製邏輯。
   - 更新腳本引用版本號避免快取。
+
+### 🔄 第六階段：定時喚醒機制 (CronJob Keep-Alive)
+- **維運設定**：
+  - 設定 CronJob 每 10 分鐘（`*/10 * * * *`）自動發送請求（Tick / Ping）至後端伺服器（`https://golf-assistant.onrender.com/api/config`）。
+  - **目的**：防止 Render 免費方案在閒置 15 分鐘後自動進入休眠（Spin-down），確保官方 LINE Bot 與 Webhook 24 小時保持熱機狀態，提供秒級即時回應。
+
+### 🔄 第七階段：Tiger Woods 職業標準十階段 (P1~P10) 與「3+4+3」分組精準動力學架構升級
+- **使用者需求**：
+  1. 升級為完整 P1 ~ P10 十大相位分析。
+  2. 排版分組嚴格採用 **「3 + 4 + 3」** 架構：
+     - **（上揚組）**：P1 (準備站姿) + P2 (起桿水平) + P3 (上桿半程) ➔ 3 連格圖
+     - **（擊球組）**：P4 (上桿頂點) + P5 (下桿半程) + P6 (擊球前導 Lag) + P7 (擊球瞬間) ➔ 4 連格圖
+     - **（送出組）**：P8 (送桿水平) + P9 (送桿半程) + P10 (收桿完成) ➔ 3 連格圖
+  3. **HackMotion 國際標準十相位幾何動力學錨定引擎（P1~P10 Kinematic Physical Engine）**：
+     - **P1 (準備站姿 Address)**：雙手必須自然垂放在「身體軀幹輪廓之內」（左右肩與左右臀的水平寬度區間內）且垂直高度低於髖部，取起桿前手腕移動速度最低（最靜止穩定）之影格（第 9 幀 / 0.30s）。
+     - **P2 (起桿水平 Takeaway)**：引桿初期手腕水平通過髖部高度 `hy ≈ refHipY`（第 166 幀）。
+     - **P3 (上桿半程 Mid-Backswing)**：引桿左側最深處 `hx 最小`，左臂水平（第 230 幀）。
+     - **P4 (上桿頂點 Top of Swing)**：手腕垂直最高點 `hy 最小`（第 339 幀）。
+     - **P5 (下桿半程 Mid-Downswing)**：手腕下降至 P4 與 P7 高度中點，右臂水平（第 428 幀）。
+     - **P6 (擊球前導 Delivery Lag)**：手腕沉壓大腿前 `hy 最大`，桿身水平蓄力（第 472 幀）。
+     - **P7 (擊球瞬間 Impact)**：手腕跨過髖部中軸線 `hx >= hipX` 且高度精準回歸擊球高度 `hy ≈ refHipY`（**精準命中第 491 幀**）。
+     - **P8 (送桿水平 Follow-Through)**：雙臂與球桿朝目標側伸展最遠 `hx 最大極值`，桿身水平（**精準命中第 536 幀**）。
+     - **P9 (送桿半程 Mid-Exit)**：手腕抬升至肩膀高度 `hy ≈ shY - 0.08`，右臂向上延展（**精準命中第 602 幀**）。
+     - **P10 (收桿完成 Finish)**：手腕繞頸至左肩後方，重心 95% 左腳（第 700 幀）。
+### 🔄 第八階段：Tiger Woods 職業基準庫 (`pro_benchmark.json`) 與即時比對處方系統
+- **使用者需求**：
+  1. 產出 `static/pro_benchmark.json`，保存 Tiger Woods 揮桿標準 P1~P10 影格幾何與力學指標。
+  2. 前端 `app.js` 載入基準庫，使用者上傳影片後呼叫 `compareWithPro()` 即時計算與職業選手的數值差值（$\Delta$）。
+  3. LINE Flex Message 動態呈現「與選手差值（如：脊椎角 34° 差 +2°、轉身 86° 差 -6°）」與 3 階段個人化改進處方。
+- **解法**：
+  - **`pro_benchmark.json`**：精確抽取 Tiger.MP4 P1~P10 全部影格座標、骨架特徵點與力學基準（脊椎前傾、胸椎旋轉量、Lag 角、穿透比、左腳平衡）。
+  - **`app.js`**：實作 `compareWithPro(userMetrics, proBenchmark)`，動態計算差值與生成 3 階段處方箋（上揚 P1~P3、擊球 P4~P7、送出 P8~P10）。
+  - **`main.py`**：`build_diagnosis_card` 支援 `diffs` 與 `stageAdvice`，將職業選手比對差值與改善處方排版至 LINE Flex 置頂診斷書。
+  - **P1 準備站姿判讀修正**：修正原先允許手腕在肩膀寬度內即判為 P1 之漏洞（導致將起桿水平誤判為 P1）。嚴格限制 P1 雙手必須在「雙臀/兩胯正中央」且自然垂於胯前，精準鎖定真正的起桿前靜止站姿。
 
 ---
 

@@ -235,7 +235,37 @@
       margin-top: 2px;
     }
 
-    /* 3-Pose Cards Grid */
+    /* Phase Tabs */
+    .phase-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 0;
+      scrollbar-width: none;
+    }
+    .phase-tabs::-webkit-scrollbar {
+      display: none;
+    }
+    .tab-btn {
+      padding: 7px 15px;
+      background: #FFFFFF;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #71717A;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+    }
+    .tab-btn:active, .tab-btn.active {
+      background: #09090B;
+      color: #FFFFFF;
+      border-color: #09090B;
+    }
+
+    /* 10-Pose Cards Grid */
     .pose-grid {
       display: flex;
       flex-direction: column;
@@ -302,7 +332,7 @@
         <span>Edge AI 晶片端即時運算</span>
       </div>
       <h1>GOLF SWING AI</h1>
-      <p class="subtitle">影片自動擷取 P1 / P4 / P7 骨架與評分</p>
+      <p class="subtitle">Tiger Woods 職業標準 P1~P10 揮桿對比與評分</p>
     </header>
 
     <!-- Upload Section -->
@@ -336,54 +366,147 @@
       <div class="score-banner">
         <div>
           <div style="font-size: 12px; color: var(--text-muted);">整體動作評分</div>
-          <div class="score-grade" id="score-grade">Pro Swing 級</div>
+          <div class="score-grade" id="score-grade">Tour Pro 級</div>
         </div>
         <div class="score-number" id="score-val">88<span style="font-size: 18px; color: #71717A;">分</span></div>
       </div>
 
-      <div class="pose-grid">
+      <!-- Phase Filter Tabs -->
+      <div class="phase-tabs" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px;">
+        <button class="tab-btn active" id="tab-all" onclick="filterPhaseGroup('all')">🌟 全部 10 階段</button>
+        <button class="tab-btn" id="tab-up" onclick="filterPhaseGroup('up')">🏌️ 上揚 (P1-P3)</button>
+        <button class="tab-btn" id="tab-strike" onclick="filterPhaseGroup('strike')">💥 擊球 (P4-P7)</button>
+        <button class="tab-btn" id="tab-exit" onclick="filterPhaseGroup('exit')">🚀 送出 (P8-P10)</button>
+      </div>
+
+      <div class="pose-grid" id="pose-grid">
         <!-- P1 Address -->
-        <div class="pose-card">
+        <div class="pose-card" data-group="up">
           <div class="pose-header">
-            <span class="pose-tag">P1 預備站姿 (Address)</span>
-            <span id="p1-frame-label">第 10 幀</span>
+            <span class="pose-tag">P1 準備站姿 (Address)</span>
+            <span id="p1-frame-label">--</span>
           </div>
-          <div class="pose-canvas-container">
-            <canvas id="p1-canvas"></canvas>
-          </div>
+          <div class="pose-canvas-container"><canvas id="p1-canvas"></canvas></div>
           <div class="pose-metrics">
             <span>站姿穩定度：<strong>優異</strong></span>
-            <span>脊椎傾角：<strong id="p1-spine">32°</strong></span>
+            <span>脊椎傾角：<strong id="p1-spine">--</strong></span>
+          </div>
+        </div>
+
+        <!-- P2 Takeaway -->
+        <div class="pose-card" data-group="up">
+          <div class="pose-header">
+            <span class="pose-tag">P2 起桿水平 (Takeaway)</span>
+            <span id="p2-frame-label">--</span>
+          </div>
+          <div class="pose-canvas-container"><canvas id="p2-canvas"></canvas></div>
+          <div class="pose-metrics">
+            <span>起桿軌跡：<strong>一體三角形</strong></span>
+            <span>手腕翻轉：<strong>零多餘動作</strong></span>
+          </div>
+        </div>
+
+        <!-- P3 Mid-Backswing -->
+        <div class="pose-card" data-group="up">
+          <div class="pose-header">
+            <span class="pose-tag">P3 上桿半程 (Mid-Backswing)</span>
+            <span id="p3-frame-label">--</span>
+          </div>
+          <div class="pose-canvas-container"><canvas id="p3-canvas"></canvas></div>
+          <div class="pose-metrics">
+            <span>左臂水平：<strong>標準</strong></span>
+            <span>立腕角度：<strong>充分蓄力</strong></span>
           </div>
         </div>
 
         <!-- P4 Top of Swing -->
-        <div class="pose-card">
+        <div class="pose-card" data-group="strike">
           <div class="pose-header">
-            <span class="pose-tag">P4 上桿頂點 (Top)</span>
-            <span id="p4-frame-label">第 42 幀</span>
+            <span class="pose-tag">P4 上桿頂點 (Top of Swing)</span>
+            <span id="p4-frame-label">--</span>
           </div>
-          <div class="pose-canvas-container">
-            <canvas id="p4-canvas"></canvas>
-          </div>
+          <div class="pose-canvas-container"><canvas id="p4-canvas"></canvas></div>
           <div class="pose-metrics">
-            <span>肩膀旋轉量：<strong id="p4-turn">89°</strong></span>
-            <span>頂點引導：<strong>充足</strong></span>
+            <span>肩膀旋轉量：<strong id="p4-turn">--</strong></span>
+            <span>下盤抗扭：<strong>穩定</strong></span>
+          </div>
+        </div>
+
+        <!-- P5 Mid-Downswing -->
+        <div class="pose-card" data-group="strike">
+          <div class="pose-header">
+            <span class="pose-tag">P5 下桿半程 (Mid-Downswing)</span>
+            <span id="p5-frame-label">--</span>
+          </div>
+          <div class="pose-canvas-container"><canvas id="p5-canvas"></canvas></div>
+          <div class="pose-metrics">
+            <span>下桿淺化：<strong>Shallowing 優異</strong></span>
+            <span>重心轉移：<strong>向左下沉</strong></span>
+          </div>
+        </div>
+
+        <!-- P6 Pre-Impact / Lag -->
+        <div class="pose-card" data-group="strike">
+          <div class="pose-header">
+            <span class="pose-tag">P6 擊球前導 (Lag Delivery)</span>
+            <span id="p6-frame-label">--</span>
+          </div>
+          <div class="pose-canvas-container"><canvas id="p6-canvas"></canvas></div>
+          <div class="pose-metrics">
+            <span>下桿延遲 Lag：<strong>強大釋放儲備</strong></span>
+            <span>側屈伸展：<strong>標準</strong></span>
           </div>
         </div>
 
         <!-- P7 Impact -->
-        <div class="pose-card">
+        <div class="pose-card" data-group="strike">
           <div class="pose-header">
             <span class="pose-tag">P7 擊球瞬間 (Impact)</span>
-            <span id="p7-frame-label">第 52 幀</span>
+            <span id="p7-frame-label">--</span>
           </div>
-          <div class="pose-canvas-container">
-            <canvas id="p7-canvas"></canvas>
-          </div>
+          <div class="pose-canvas-container"><canvas id="p7-canvas"></canvas></div>
           <div class="pose-metrics">
-            <span>下桿釋放：<strong>良好</strong></span>
-            <span>桿頭相對速度：<strong id="p7-vel">高</strong></span>
+            <span>骨盆轉開：<strong>38° (完全釋放)</strong></span>
+            <span>頭部位置：<strong>穩留球後</strong></span>
+          </div>
+        </div>
+
+        <!-- P8 Follow-Through -->
+        <div class="pose-card" data-group="exit">
+          <div class="pose-header">
+            <span class="pose-tag">P8 送桿水平 (Follow-Through)</span>
+            <span id="p8-frame-label">--</span>
+          </div>
+          <div class="pose-canvas-container"><canvas id="p8-canvas"></canvas></div>
+          <div class="pose-metrics">
+            <span>手臂穿透：<strong>完全延展</strong></span>
+            <span>出球方向：<strong>方正</strong></span>
+          </div>
+        </div>
+
+        <!-- P9 Mid-Exit -->
+        <div class="pose-card" data-group="exit">
+          <div class="pose-header">
+            <span class="pose-tag">P9 送桿半程 (Mid-Exit)</span>
+            <span id="p9-frame-label">--</span>
+          </div>
+          <div class="pose-canvas-container"><canvas id="p9-canvas"></canvas></div>
+          <div class="pose-metrics">
+            <span>身體朝向：<strong>面向目標</strong></span>
+            <span>右臂上揚：<strong>流暢</strong></span>
+          </div>
+        </div>
+
+        <!-- P10 Finish -->
+        <div class="pose-card" data-group="exit">
+          <div class="pose-header">
+            <span class="pose-tag">P10 收桿完成 (Finish)</span>
+            <span id="p10-frame-label">--</span>
+          </div>
+          <div class="pose-canvas-container"><canvas id="p10-canvas"></canvas></div>
+          <div class="pose-metrics">
+            <span>左腳重心：<strong>95% 站穩</strong></span>
+            <span>右腳踮起：<strong>垂直平衡</strong></span>
           </div>
         </div>
       </div>
@@ -474,6 +597,6 @@
     })();
   </script>
 
-  <script type="module" src="app.js?v=20260905_4"></script>
+  <script type="module" src="app.js?v=20260905_16"></script>
 </body>
 </html>
