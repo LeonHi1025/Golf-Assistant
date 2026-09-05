@@ -143,8 +143,36 @@ dropZone.addEventListener("drop", (e) => {
   }
 });
 
+// 觸發防呆警告流程 (通知使用者並向 LINE 發送「警告」文字觸發規範說明)
+async function triggerFoolproofWarning(reason) {
+  console.warn("⚠️ 觸發防呆機制:", reason);
+  alert(`⚠️ 格式不符合規定：${reason}，請檢查後重新上傳！`);
+  resetApp();
+
+  const warningMsg = "警告";
+  if (window.liff && isLiffInitialized) {
+    if (liff.isLoggedIn() && liff.isInClient()) {
+      try {
+        await liff.sendMessages([{ type: "text", text: warningMsg }]);
+        console.log("✅ 已自動向 LINE 發送「警告」觸發規範說明！");
+      } catch (e) {
+        console.warn("發送警告訊息失敗:", e);
+      }
+    }
+  }
+}
+
 // 3. 逐影格解碼與邊緣 AI 姿態分析
 async function handleVideoFile(file) {
+  if (!file) return;
+
+  // 1. 照片 / 非影片格式防呆
+  const isVideoType = file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(file.name);
+  if (!isVideoType) {
+    await triggerFoolproofWarning("本系統僅支援影片檔案，不支援靜態照片");
+    return;
+  }
+
   if (!poseLandmarker) {
     alert("AI 骨架模型仍在載入中，請稍候 2 秒再試！");
     return;
@@ -165,6 +193,17 @@ async function handleVideoFile(file) {
   });
 
   const duration = hiddenVideo.duration;
+
+  // 2. 影片時長超過 60 秒或過短防呆
+  if (!duration || isNaN(duration) || duration > 60) {
+    await triggerFoolproofWarning("影片長度超過 60 秒（建議上傳 5~15 秒之揮桿片段）");
+    return;
+  }
+  if (duration < 0.8) {
+    await triggerFoolproofWarning("影片長度過短，無法解析完整揮桿動作");
+    return;
+  }
+
   const fps = 30; // 預設採樣率
   const totalExpectedFrames = Math.max(15, Math.floor(duration * fps));
 
@@ -276,8 +315,7 @@ async function handleVideoFile(file) {
   // =============================================================
   const totalFrames = frames.length;
   if (totalFrames < 15) {
-    alert("影片過短，請提供至少 2~3 秒的揮桿影片！");
-    resetApp();
+    await triggerFoolproofWarning("影片有效影格數過少，無法完成揮桿分析");
     return;
   }
 
@@ -305,9 +343,22 @@ async function handleVideoFile(file) {
     }
   }
 
-  if (validData.length < 10) {
-    alert("無法清晰識別揮桿人體骨架，請確保人體全身入鏡！");
-    resetApp();
+  // 3. 骨架有效性與識別率防呆 (排除拍風景、動物、黑屏或骨架嚴重遮蔽)
+  if (validData.length < 15 || (validData.length / totalFrames) < 0.30) {
+    await triggerFoolproofWarning("無法清晰識別出人體骨架（請確保人物全身清楚入鏡）");
+    return;
+  }
+
+  // 4. 揮桿位移範圍與運動合理性防呆 (排除靜止不動、只有走動或亂傳非揮桿影片)
+  const minHx = Math.min(...validData.map(d => d.hx));
+  const maxHx = Math.max(...validData.map(d => d.hx));
+  const minHy = Math.min(...validData.map(d => d.hy));
+  const maxHy = Math.max(...validData.map(d => d.hy));
+  const motionRangeX = maxHx - minHx;
+  const motionRangeY = maxHy - minHy;
+
+  if (motionRangeX < 0.12 && motionRangeY < 0.10) {
+    await triggerFoolproofWarning("未偵測到揮桿運動軌跡（請確認為高爾夫揮桿動作）");
     return;
   }
 
@@ -471,8 +522,8 @@ async function handleVideoFile(file) {
   const turnEl = document.getElementById("p4-turn");
   if (turnEl) turnEl.innerText = `${shoulderTurn}°`;
   
-  document.getElementById("score-val").innerHTML = `${score}<span style="font-size: 18px; color: #71717A;">分</span>`;
-  document.getElementById("score-grade").innerText = score >= 90 ? `Tour Pro 級 (${similarity}% 相似)` : (score >= 85 ? `Semi-Pro 級 (${similarity}% 相似)` : `進步空間良好 (${similarity}%)`);
+  document.getElementById("score-val").innerHTML = `${similarity}<span style="font-size: 18px; color: #71717A;">%</span>`;
+  document.getElementById("score-grade").innerText = `Tiger 相似度 ${similarity}% (${similarity >= 88 ? '職業級對齊' : '進階微調建議'})`;
 
   // 10. 產生【3 + 4 + 3】分組照片組（疊加淡深紫色 Tiger 職業標準骨架供直覺對比）
   // 組 1（上揚）：P1 準備站姿, P2 起桿水平, P3 上桿半程 (3格)

@@ -252,8 +252,7 @@ def build_diagnosis_card(
     diffs: dict = None,
     advice: list = None
 ) -> dict:
-    """生成 100% 免費的 Reply Tiger 職業標準揮桿診斷處方箋 (簡潔白底黑字卡片)"""
-    grade = "Tour Pro 級" if score >= 90 else ("Semi-Pro 級" if score >= 85 else "業餘進階級")
+    """生成 100% 免費的 Reply Tiger 職業標準揮桿診斷處方箋 (純動作建議與相似度對比)"""
     diffs = diffs or {}
     
     # 差值字串處理
@@ -299,7 +298,7 @@ def build_diagnosis_card(
                     "contents": [
                         {
                             "type": "text",
-                            "text": f"⛳ 動作評定：{grade}",
+                            "text": "🐅 Tiger 職業標準對比",
                             "weight": "bold",
                             "size": "md",
                             "color": "#111111",
@@ -307,21 +306,20 @@ def build_diagnosis_card(
                         },
                         {
                             "type": "text",
-                            "text": f"{score}分",
+                            "text": f"{similarity}% 相似",
                             "weight": "bold",
-                            "size": "lg",
-                            "color": "#111111",
+                            "size": "sm",
+                            "color": "#7E22CE",
                             "align": "end",
-                            "flex": 3
+                            "flex": 4
                         }
                     ]
                 },
                 {
                     "type": "text",
-                    "text": f"🐅 Tiger 職業標準相似度：{similarity}%",
+                    "text": "專屬高爾夫揮桿動作直覺調整處方",
                     "size": "xs",
                     "color": "#4B5563",
-                    "weight": "bold",
                     "margin": "xs"
                 },
                 {"type": "separator", "margin": "md", "color": "#E5E7EB"},
@@ -480,19 +478,33 @@ def handle_text(event: MessageEvent):
                 )
             )
 
-    # 2. 喚醒與伺服器狀態查詢：Hi! Wake up!
+    # 2. 觸發防呆機制警示回覆 (格式不符合規定)
+    elif "警告" in user_text:
+        reply_text = (
+            "⚠️ 格式不符合規定！\n\n"
+            "📌 上傳與分析規範：\n"
+            "1. 影片長度須在 60 秒以內（不支援照片）。\n"
+            "2. 請確保人物全身清楚入鏡，並完成標準高爾夫揮桿動作。\n"
+            "3. 若肢體差距過大、骨架嚴重錯位或非揮桿影片將無法分析。\n\n"
+            "請檢查後重新上傳！"
+        )
+        reply_messages = [
+            TextMessage(text=reply_text)
+        ]
+
+    # 3. 喚醒與伺服器狀態查詢：Hi! Wake up!
     elif "wake up" in normalized_text or "wake" in normalized_text:
         reply_messages = [
             TextMessage(text="Hi! 現在可以點Let’s Analyze來嘗試功能！")
         ]
 
-    # 3. 彩蛋關鍵字：Amba
+    # 4. 彩蛋關鍵字：Amba
     elif normalized_text == "amba":
         reply_messages = [
             TextMessage(text="oh..Shit...")
         ]
 
-    # 4. 其餘輸入統一回覆
+    # 5. 其餘輸入統一回覆
     else:
         reply_messages = [
             TextMessage(text="可以嘗試Let’s Analyze進行高爾夫球姿勢影片分析哦")
