@@ -261,13 +261,13 @@ def build_diagnosis_card(
     spine_diff_str = f" (差 {spine_diff_val:+d}°)" if spine_diff_val != 0 else " (完美)"
     turn_diff_str = f" (差 {turn_diff_val:+d}°)" if turn_diff_val != 0 else " (完美)"
     
-    # 改善建議
+    # 逐張 P1~P10 動作調整處方排版
     if advice and len(advice) > 0:
         advice_contents = []
         for adv in advice:
             advice_contents.append({
                 "type": "text",
-                "text": str(adv),
+                "text": f"• {adv}",
                 "size": "xxs",
                 "color": "#374151",
                 "wrap": True,
@@ -276,7 +276,7 @@ def build_diagnosis_card(
     else:
         advice_contents = [{
             "type": "text",
-            "text": "1. 保持下桿時頭部穩定，維持下桿延遲釋放 (Lag)。\n2. 擊球瞬間保持左臂延展，釋放桿頭速度更具穿透力！",
+            "text": "• P1 站姿：保持脊椎前傾 32°，雙手自然垂直放鬆。\n• P4 頂點：轉身蓄力充分，雙手抬高維持大圓弧。\n• P7 擊球：左手臂打直貫穿，骨盆朝目標轉開！",
             "size": "xxs",
             "color": "#374151",
             "wrap": True,
@@ -317,48 +317,15 @@ def build_diagnosis_card(
                 },
                 {
                     "type": "text",
-                    "text": "專屬高爾夫揮桿動作直覺調整處方",
+                    "text": f"脊椎前傾 {spine}°{spine_diff_str} ｜ 頂點轉身 {turn}°{turn_diff_str}",
                     "size": "xs",
                     "color": "#4B5563",
                     "margin": "xs"
                 },
                 {"type": "separator", "margin": "md", "color": "#E5E7EB"},
                 {
-                    "type": "box",
-                    "layout": "vertical",
-                    "margin": "md",
-                    "spacing": "sm",
-                    "contents": [
-                        {
-                            "type": "box",
-                            "layout": "baseline",
-                            "contents": [
-                                {"type": "text", "text": "• P1~P3 上揚", "color": "#4B5563", "size": "xs", "flex": 4},
-                                {"type": "text", "text": f"脊椎 {spine}°{spine_diff_str}", "color": "#111111", "size": "xs", "weight": "bold", "flex": 6}
-                            ]
-                        },
-                        {
-                            "type": "box",
-                            "layout": "baseline",
-                            "contents": [
-                                {"type": "text", "text": "• P4~P7 擊球", "color": "#4B5563", "size": "xs", "flex": 4},
-                                {"type": "text", "text": f"轉身 {turn}°{turn_diff_str}", "color": "#111111", "size": "xs", "weight": "bold", "flex": 6}
-                            ]
-                        },
-                        {
-                            "type": "box",
-                            "layout": "baseline",
-                            "contents": [
-                                {"type": "text", "text": "• P8~P10 送出", "color": "#4B5563", "size": "xs", "flex": 4},
-                                {"type": "text", "text": "核心完全釋放・平衡收桿", "color": "#059669", "size": "xs", "weight": "bold", "flex": 6}
-                            ]
-                        }
-                    ]
-                },
-                {"type": "separator", "margin": "md", "color": "#E5E7EB"},
-                {
                     "type": "text",
-                    "text": "💡 Tiger 對比改進處方：",
+                    "text": "💡 P1～P10 逐張動作調整處方箋：",
                     "weight": "bold",
                     "size": "xs",
                     "color": "#111111",
@@ -492,22 +459,68 @@ def handle_text(event: MessageEvent):
             TextMessage(text=reply_text)
         ]
 
-    # 3. 喚醒與伺服器狀態查詢：Hi! Wake up!
-    elif "wake up" in normalized_text or "wake" in normalized_text:
+    # 3. 使用說明與注意事項 (回覆文字與建議拍攝角度示意圖)
+    elif "使用說明" in user_text or "說明" in user_text or "instruction" in normalized_text or "help" in normalized_text:
+        base_url = SERVER_BASE_URL or latest_server_host or "https://golf-assistant.onrender.com"
+        guide_text = (
+            "使用說明與注意事項\n"
+            "* 操作方式：\n"
+            "    * 請上傳正面（Face-on）全身入鏡之揮桿影片或慢動作影片（建議 3～10 秒為佳，過長易增加手機運算負擔）。\n"
+            "    * 系統將於手機端本地分析骨架幾何角度，完成後會自動回傳診斷卡片至 LINE 聊天室。\n"
+            "* 服務運作時段：\n"
+            "    * 每日 08:00 ～ 22:00（Asia/Taipei）正常在線服務。\n"
+            "    * 夜間（22:00 ～ 08:00）主機進入休眠狀態；\n"
+            "    * 若於離線時段使用，首次Hi進行測試，若無反應需等候約 25～30 秒進行伺服器喚醒。\n"
+            "* AI 分析免責聲明：\n"
+            "    * 本系統之骨架偵測與對比數據由電腦視覺演算法即時估算，結果僅供自我練習輔助參考。\n"
+            "    * 數值可能受攝影角度、衣著寬鬆度或光線影響而產生偏差，實際動作診斷與調整建議請務必以專業指導教練／老師現場指導為主。\n"
+            "* 版權與著作權聲明：\n"
+            "    * 系統對比採用之職業選手標準動作指標（包含 Tiger Woods 等相關基準數據與參考示意），僅作為學術研究、個人化運動力學分析與技術驗證之合理使用範圍，相關影像之原著作權仍歸原著作權人與轉播單位所有。\n\n"
+            "以下為建議拍攝角度"
+        )
+        guide_img_url = f"{base_url.rstrip('/')}/static/guide_camera_angle.jpg"
         reply_messages = [
-            TextMessage(text="Hi! 現在可以點Let’s Analyze來嘗試功能！")
+            TextMessage(text=guide_text),
+            ImageMessage(
+                original_content_url=guide_img_url,
+                preview_image_url=guide_img_url
+            )
         ]
 
-    # 4. 彩蛋關鍵字：Amba
+    # 4. 喚醒與伺服器狀態查詢：Hi! Wake Up!
+    elif "wake up" in normalized_text or "wake" in normalized_text:
+        reply_messages = [
+            TextMessage(text="我在8:00~22:00都是醒著哦，可以直接點擊左下角“分析”使用，若在其他時段找我，請等我起床....，我會馬上回覆你")
+        ]
+
+    # 5. 彩蛋關鍵字：謝亞諺
+    elif "謝亞諺" in user_text:
+        reply_messages = [
+            TextMessage(text="他在偷讀書請小心")
+        ]
+
+    # 6. 彩蛋關鍵字：吳柏毅
+    elif "吳柏毅" in user_text:
+        reply_messages = [
+            TextMessage(text="Uber Eat 他在偷讀書，快去打擾他")
+        ]
+
+    # 7. 彩蛋關鍵字：莊有隆
+    elif "莊有隆" in user_text:
+        reply_messages = [
+            TextMessage(text="身旁的人都在偷讀書，壓力很大....")
+        ]
+
+    # 8. 彩蛋關鍵字：Amba
     elif normalized_text == "amba":
         reply_messages = [
             TextMessage(text="oh..Shit...")
         ]
 
-    # 5. 其餘輸入統一回覆
+    # 9. 其餘輸入一律回覆
     else:
         reply_messages = [
-            TextMessage(text="可以嘗試Let’s Analyze進行高爾夫球姿勢影片分析哦")
+            TextMessage(text="可嘗試點擊分析進行使用哦")
         ]
 
     with ApiClient(configuration) as api_client:
