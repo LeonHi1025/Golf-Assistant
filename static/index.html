@@ -177,7 +177,7 @@
       background: #F4F5F7;
     }
 
-    /* Progress & Status */
+    /* Progress & Status - golf-pwa-v13-pose07 */
     #progress-container {
       display: none;
       margin-top: 16px;
@@ -332,11 +332,25 @@
         <span>Edge AI 晶片端即時運算</span>
       </div>
       <h1>GOLF SWING AI</h1>
-      <p class="subtitle">Tiger Woods 職業標準 P1~P10 揮桿對比與評分</p>
+      <p class="subtitle">HackMotion 國際標準 P1~P10 揮桿對比與評分</p>
     </header>
 
     <!-- Upload Section -->
     <div class="card" id="upload-card">
+      <!-- 📷 AR 即時幽靈骨架相機入口 -->
+      <a href="ghost_camera.html" style="text-decoration:none; display:block; margin-bottom: 14px;">
+        <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(192, 132, 252, 0.05) 100%); border: 1.5px solid rgba(168, 85, 247, 0.35); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; box-shadow: 0 4px 12px rgba(168, 85, 247, 0.08);">
+          <div style="display:flex; align-items:center; gap: 10px;">
+            <div style="width:36px; height:36px; border-radius:10px; background:rgba(168, 85, 247, 0.2); display:flex; align-items:center; justify-content:center; font-size:18px;">📸</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: #7E22CE;">AR 幽靈骨架相機 (即時對齊)</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top:2px;">開啟鏡頭，以半透明紫色標準骨架浮水印即時校正站姿</div>
+            </div>
+          </div>
+          <span style="font-size: 14px; color: #9333EA; font-weight: 800; background:rgba(168, 85, 247, 0.15); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center;">➔</span>
+        </div>
+      </a>
+
       <input type="file" id="video-input" accept="video/*" style="display:none">
       <div class="upload-zone" id="drop-zone" onclick="document.getElementById('video-input').click()">
         <div class="upload-icon">
@@ -365,7 +379,7 @@
     <div id="result-section">
       <div class="score-banner">
         <div>
-          <div style="font-size: 12px; color: var(--text-muted);">🐅 Tiger 職業標準對比</div>
+          <div style="font-size: 12px; color: var(--text-muted);">🏌️‍♂️ HackMotion 標準對比</div>
           <div class="score-grade" id="score-grade" style="color: #C084FC;">動作精準對比</div>
         </div>
         <div class="score-number" id="score-val" style="color: #A855F7;">88<span style="font-size: 18px; color: #71717A;">%</span></div>
@@ -597,6 +611,6 @@
     })();
   </script>
 
-  <script type="module" src="app.js?v=20260905_23"></script>
+  <script type="module" src="app.js?v=20260911_min_frame"></script>
 </body>
 </html>

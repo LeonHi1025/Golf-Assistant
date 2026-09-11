@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>⛳ 揮桿幽靈骨架相機 — AR 即時姿勢對齊 (Ghost Skeleton Live)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090A0F;
+      --card-bg: rgba(18, 20, 29, 0.75);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --accent: #00E676;
+      --accent-glow: rgba(0, 230, 118, 0.35);
+      --purple: #C084FC;
+      --purple-neon: #A855F7;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --danger: #EF4444;
+      --font: 'Outfit', 'Noto Sans TC', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* 相機與疊加層視窗 */
+    #viewport-container {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video#camera-feed {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+      transition: transform 0.2s ease;
+    }
+
+    /* 鏡像模式 */
+    video.mirrored {
+      transform: translate(-50%, -50%) scaleX(-1) !important;
+    }
+
+    canvas#ghost-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* 頂部控制導覽列 */
+    header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(180deg, rgba(9, 10, 15, 0.85) 0%, rgba(9, 10, 15, 0) 100%);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      background: rgba(168, 85, 247, 0.18);
+      border: 1px solid rgba(168, 85, 247, 0.5);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #E9D5FF;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--purple-neon);
+      box-shadow: 0 0 8px var(--purple);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+    }
+
+    .icon-btn:active {
+      transform: scale(0.92);
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .icon-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    /* 懸浮提示膠囊 */
+    #tip-pill {
+      position: absolute;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #CBD5E1;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    /* 底部面板控制器 */
+    #bottom-panel {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      padding: 12px 14px 20px 14px;
+      background: linear-gradient(0deg, rgba(9, 10, 15, 0.95) 0%, rgba(9, 10, 15, 0.75) 75%, rgba(9, 10, 15, 0) 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* P1 ~ P10 相位切換橫條 */
+    .phase-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px 2px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .phase-bar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .phase-pill {
+      flex: 0 0 auto;
+      padding: 6px 13px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.18s ease;
+    }
+
+    .phase-pill.active {
+      background: var(--purple-neon);
+      color: #FFFFFF;
+      border-color: #D8B4FE;
+      box-shadow: 0 0 14px rgba(168, 85, 247, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .phase-pill:active {
+      transform: scale(0.95);
+    }
+
+    /* 即時調節滑桿浮動抽屜 */
+    #tune-drawer {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 10px 14px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #tune-drawer.show {
+      display: flex;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .slider-row span.label {
+      width: 58px;
+      flex-shrink: 0;
+      color: var(--text);
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--purple-neon);
+      height: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    .slider-row span.val {
+      width: 36px;
+      text-align: right;
+      font-family: monospace;
+      font-weight: 700;
+      color: #E2E8F0;
+    }
+
+    /* 底部操作按鈕組 */
+    .controls-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    .tune-toggle-btn {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .tune-toggle-btn:active {
+      transform: scale(0.97);
+    }
+
+    .tune-toggle-btn.active {
+      background: rgba(168, 85, 247, 0.25);
+      border-color: var(--purple);
+      color: #F3E8FF;
+    }
+
+    .shutter-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      transition: all 0.15s ease;
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.35);
+    }
+
+    .shutter-btn:active {
+      transform: scale(0.88);
+      background: var(--accent);
+      border-color: var(--accent-glow);
+    }
+
+    /* 拍照閃爍動畫 */
+    #flash-overlay {
+      position: fixed;
+      inset: 0;
+      background: #FFFFFF;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 9999;
+      transition: opacity 0.15s ease-out;
+    }
+
+    #flash-overlay.flashing {
+      opacity: 0.85;
+      transition: none;
+    }
+
+    /* 載入指示器 */
+    #loading-box {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 18px 24px;
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(192, 132, 252, 0.25);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="flash-overlay"></div>
+
+  <!-- 頂部導覽列 -->
+  <header>
+    <div class="brand-group">
+      <a href="index.html" class="icon-btn" title="返回主頁" style="text-decoration:none;">◀</a>
+      <div class="brand-badge">
+        <span class="brand-dot"></span>
+        <span id="header-phase-title">P1 準備站姿</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="btn-mirror" title="水平鏡像翻轉">🪞</button>
+      <button class="icon-btn" id="btn-switch-camera" title="切換前後鏡頭">🔄</button>
+    </div>
+  </header>
+
+  <!-- 懸浮提示條 -->
+  <div id="tip-pill">
+    <span>💡 調整站位，使身體輪廓貼合紫色幽靈骨架</span>
+  </div>
+
+  <!-- 主視窗（即時相機 + 幽靈骨架 Canvas） -->
+  <div id="viewport-container">
+    <video id="camera-feed" playsinline autoplay muted></video>
+    <canvas id="ghost-canvas"></canvas>
+
+    <div id="loading-box">
+      <div class="spinner"></div>
+      <div style="font-size:13px; font-weight:700; color:#E9D5FF;">正在啟動相機與載入標準骨架...</div>
+    </div>
+  </div>
+
+  <!-- 底部控制面板 -->
+  <div id="bottom-panel">
+    <!-- P1 ~ P10 相位選擇橫列 -->
+    <div class="phase-bar" id="phase-bar">
+      <!-- 動態產生 P1~P10 按鈕 -->
+    </div>
+
+    <!-- 即時微調抽屜 -->
+    <div id="tune-drawer">
+      <div class="slider-row">
+        <span class="label">透明度</span>
+        <input type="range" id="slider-opacity" min="20" max="100" value="85">
+        <span class="val" id="val-opacity">85%</span>
+      </div>
+      <div class="slider-row">
+        <span class="label">骨架大小</span>
+        <input type="range" id="slider-scale" min="50" max="180" value="100">
+        <span class="val" id="val-scale">1.0x</span>
+      </div>
+      <div class="slider-row">
+        <span class="label">垂直高度</span>
+        <input type="range" id="slider-offset-y" min="-150" max="150" value="0">
+        <span class="val" id="val-offset-y">0px</span>
+      </div>
+      <div class="slider-row">
+        <span class="label">左右平移</span>
+        <input type="range" id="slider-offset-x" min="-150" max="150" value="0">
+        <span class="val" id="val-offset-x">0px</span>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button id="btn-reset-tune" style="background:none; border:none; color:var(--accent); font-size:11px; font-weight:700; cursor:pointer; padding:2px 6px;">↺ 重設位置大小</button>
+      </div>
+    </div>
+
+    <!-- 底部功能開關與拍照 -->
+    <div class="controls-group">
+      <button class="tune-toggle-btn" id="btn-toggle-tune">
+        <span>⚙️ 微調尺寸位置</span>
+      </button>
+
+      <button class="shutter-btn" id="btn-snapshot" title="截圖比對存檔">
+        📸
+      </button>
+
+      <button class="tune-toggle-btn" id="btn-toggle-grid">
+        <span>📏 站姿基準網格</span>
+      </button>
+    </div>
+  </div>
+
+  <script type="module">
+    // MediaPipe Pose 骨架關節連線
+    const POSE_CONNECTIONS = [
+      [11, 12],           // 雙肩
+      [11, 13], [13, 15], // 左臂
+      [12, 14], [14, 16], // 右臂
+      [11, 23], [12, 24], // 軀幹
+      [23, 24],           // 雙臀
+      [23, 25], [25, 27], // 左腿
+      [24, 26], [26, 28]  // 右腿
+    ];
+
+    const PHASES = [
+      { key: "P1", name: "準備站姿", tag: "Address" },
+      { key: "P2", name: "起桿水平", tag: "Takeaway" },
+      { key: "P3", name: "上桿半程", tag: "Mid-Backswing" },
+      { key: "P4", name: "上桿頂點", tag: "Top of Swing" },
+      { key: "P5", name: "下桿半程", tag: "Mid-Downswing" },
+      { key: "P6", name: "擊球前導", tag: "Delivery Lag" },
+      { key: "P7", name: "擊球瞬間", tag: "Impact" },
+      { key: "P8", name: "送桿水平", tag: "Follow-Through" },
+      { key: "P9", name: "送桿半程", tag: "Mid-Exit" },
+      { key: "P10", name: "收桿完成", tag: "Finish" }
+    ];
+
+    // 狀態設定
+    let currentPhaseKey = "P1";
+    let benchmarkData = null;
+    let currentStream = null;
+    let facingMode = "environment"; // 預設使用環境後鏡頭
+    let isMirrored = false;
+    let showGrid = true;
+    let ghostOpacity = 0.85;
+    let ghostScale = 1.0;
+    let ghostOffsetX = 0;
+    let ghostOffsetY = 0;
+
+    // DOM 元素
+    const video = document.getElementById("camera-feed");
+    const canvas = document.getElementById("ghost-canvas");
+    const ctx = canvas.getContext("2d");
+    const loadingBox = document.getElementById("loading-box");
+    const phaseBar = document.getElementById("phase-bar");
+    const headerTitle = document.getElementById("header-phase-title");
+    const tuneDrawer = document.getElementById("tune-drawer");
+    const btnToggleTune = document.getElementById("btn-toggle-tune");
+    const btnMirror = document.getElementById("btn-mirror");
+    const btnSwitchCamera = document.getElementById("btn-switch-camera");
+    const btnSnapshot = document.getElementById("btn-snapshot");
+    const btnToggleGrid = document.getElementById("btn-toggle-grid");
+    const btnResetTune = document.getElementById("btn-reset-tune");
+
+    // 滑桿元素
+    const sliderOpacity = document.getElementById("slider-opacity");
+    const valOpacity = document.getElementById("val-opacity");
+    const sliderScale = document.getElementById("slider-scale");
+    const valScale = document.getElementById("val-scale");
+    const sliderOffsetY = document.getElementById("slider-offset-y");
+    const valOffsetY = document.getElementById("val-offset-y");
+    const sliderOffsetX = document.getElementById("slider-offset-x");
+    const valOffsetX = document.getElementById("val-offset-x");
+
+    // 1. 初始化相位按鈕
+    function initPhaseBar() {
+      phaseBar.innerHTML = "";
+      PHASES.forEach(p => {
+        const btn = document.createElement("button");
+        btn.className = `phase-pill ${p.key === currentPhaseKey ? "active" : ""}`;
+        btn.id = `phase-btn-${p.key}`;
+        btn.innerHTML = `<span>${p.key}</span> <span>${p.name}</span>`;
+        btn.addEventListener("click", () => selectPhase(p.key));
+        phaseBar.appendChild(btn);
+      });
+    }
+
+    function selectPhase(key) {
+      currentPhaseKey = key;
+      const cur = PHASES.find(p => p.key === key);
+      headerTitle.innerText = `${cur.key} ${cur.name}`;
+
+      document.querySelectorAll(".phase-pill").forEach(btn => btn.classList.remove("active"));
+      const activeBtn = document.getElementById(`phase-btn-${key}`);
+      if (activeBtn) {
+        activeBtn.classList.add("active");
+        activeBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+      drawGhostOverlay();
+    }
+
+    // 2. 載入職業基準骨架
+    async function loadBenchmarkData() {
+      try {
+        const res = await fetch("pro_benchmark.json");
+        benchmarkData = await res.json();
+        console.log("✅ 職業標準骨架資料載入成功");
+      } catch (err) {
+        console.warn("⚠️ 載入 pro_benchmark.json 失敗，改用備用站姿資料:", err);
+      }
+    }
+
+    // 3. 啟動攝影機串流
+    async function startCamera() {
+      loadingBox.style.display = "flex";
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      try {
+        const constraints = {
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentStream = stream;
+        video.srcObject = stream;
+
+        // 若前鏡頭自拍模式，自動預設鏡像
+        if (facingMode === "user") {
+          isMirrored = true;
+        }
+
+        updateMirrorClass();
+
+        video.onloadedmetadata = () => {
+          video.play();
+          loadingBox.style.display = "none";
+          resizeCanvas();
+          drawGhostOverlay();
+        };
+      } catch (err) {
+        console.error("相機存取失敗:", err);
+        loadingBox.innerHTML = `
+          <div style="font-size:24px;">⚠️</div>
+          <div style="font-size:13px; font-weight:700; color:#F87171;">無法啟動相機</div>
+          <div style="font-size:11px; color:#94A3B8; text-align:center;">請確認已允許瀏覽器相機權限，或使用 HTTPS 協定連線。</div>
+        `;
+      }
+    }
+
+    function updateMirrorClass() {
+      if (isMirrored) {
+        video.classList.add("mirrored");
+        btnMirror.classList.add("active");
+      } else {
+        video.classList.remove("mirrored");
+        btnMirror.classList.remove("active");
+      }
+    }
+
+    // 4. 自適應調整畫布大小
+    function resizeCanvas() {
+      const rect = video.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      drawGhostOverlay();
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+
+    // 5. 繪製幽靈骨架浮水印 (Zero-Overhead Static Vector Canvas Rendering)
+    function drawGhostOverlay() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const w = canvas.width;
+      const h = canvas.height;
+      if (w === 0 || h === 0) return;
+
+      // 5a. 繪製對齊輔助參考網格（中軸線與地面水平線）
+      if (showGrid) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+
+        // 中央垂直中軸線
+        ctx.beginPath();
+        ctx.moveTo(w * 0.5, 0);
+        ctx.lineTo(w * 0.5, h);
+        ctx.stroke();
+
+        // 地面水平參考線 (約 85% 高度)
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.85);
+        ctx.lineTo(w, h * 0.85);
+        ctx.stroke();
+
+        // 雙腳參考落點標記
+        ctx.setLineDash([]);
+        ctx.strokeStyle = "rgba(0, 230, 118, 0.35)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(w * 0.5 - 75, h * 0.83, 35, 14); // 左腳底
+        ctx.strokeRect(w * 0.5 + 40, h * 0.83, 35, 14); // 右腳底
+        ctx.restore();
+      }
+
+      // 5b. 提取當前相位的職業基準骨架
+      const phaseData = benchmarkData?.phases?.[currentPhaseKey];
+      const landmarks = phaseData?.landmarks;
+      if (!landmarks) return;
+
+      // 骨盆中心點
+      const hipX = (landmarks[23].x + landmarks[24].x) / 2.0;
+      const hipY = (landmarks[23].y + landmarks[24].y) / 2.0;
+
+      // 畫面中心與大小映射
+      const centerPxX = (w * 0.5) + ghostOffsetX;
+      const centerPxY = (h * 0.52) + ghostOffsetY; // 站姿重心略微靠下
+      const baseScalePx = h * 0.70 * ghostScale;   // 基準人身約佔畫面 70% 高度
+
+      const pts = {};
+      for (let idx = 11; idx <= 28; idx++) {
+        if (idx >= 17 && idx <= 22) continue; // 排除手指雜點
+        const p = landmarks[idx];
+        if (p) {
+          // 以骨盆為中心做縮放映射
+          pts[idx] = [
+            centerPxX + (p.x - hipX) * baseScalePx,
+            centerPxY + (p.y - hipY) * baseScalePx
+          ];
+        }
+      }
+
+      ctx.save();
+      ctx.globalAlpha = ghostOpacity;
+
+      // 5c. 先繪製骨架連線（高飽和霓虹紫 + 外發光）
+      ctx.lineWidth = 4.0;
+      ctx.strokeStyle = "#A855F7";
+      ctx.shadowColor = "#C084FC";
+      ctx.shadowBlur = 10;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      for (const [start, end] of POSE_CONNECTIONS) {
+        if (pts[start] && pts[end]) {
+          ctx.beginPath();
+          ctx.moveTo(pts[start][0], pts[start][1]);
+          ctx.lineTo(pts[end][0], pts[end][1]);
+          ctx.stroke();
+        }
+      }
+
+      // 5d. 後繪製關節點
+      let wristDrawn = false;
+      for (let idx = 11; idx <= 28; idx++) {
+        if (idx >= 17 && idx <= 22) continue;
+        if (pts[idx]) {
+          const [cx, cy] = pts[idx];
+          const isWrist = (idx === 15 || idx === 16);
+
+          if (isWrist) {
+            if (wristDrawn) continue;
+            wristDrawn = true;
+            // 職業手腕強制單一紅色鎖定錨點
+            ctx.beginPath();
+            ctx.arc(cx, cy, 7.5, 0, Math.PI * 2);
+            ctx.fillStyle = "#EF4444";
+            ctx.shadowColor = "#DC2626";
+            ctx.shadowBlur = 12;
+            ctx.fill();
+
+            // 手腕外擴亮白環
+            ctx.beginPath();
+            ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+            ctx.strokeStyle = "#FFFFFF";
+            ctx.lineWidth = 2.0;
+            ctx.stroke();
+          } else {
+            // 一般關節紫色點
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4.0, 0, Math.PI * 2);
+            ctx.fillStyle = "#E9D5FF";
+            ctx.shadowColor = "#A855F7";
+            ctx.shadowBlur = 6;
+            ctx.fill();
+          }
+        }
+      }
+
+      ctx.restore();
+    }
+
+    // 6. 互動觸控拖曳移動骨架 (Touch / Mouse Drag)
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialOffsetX = 0, initialOffsetY = 0;
+
+    const vContainer = document.getElementById("viewport-container");
+
+    vContainer.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      initialOffsetX = ghostOffsetX;
+      initialOffsetY = ghostOffsetY;
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      ghostOffsetX = initialOffsetX + (e.clientX - startX);
+      ghostOffsetY = initialOffsetY + (e.clientY - startY);
+      sliderOffsetX.value = Math.max(-150, Math.min(150, ghostOffsetX));
+      valOffsetX.innerText = `${Math.round(ghostOffsetX)}px`;
+      sliderOffsetY.value = Math.max(-150, Math.min(150, ghostOffsetY));
+      valOffsetY.innerText = `${Math.round(ghostOffsetY)}px`;
+      drawGhostOverlay();
+    });
+
+    window.addEventListener("mouseup", () => { isDragging = false; });
+
+    // 手機觸控拖曳
+    vContainer.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        initialOffsetX = ghostOffsetX;
+        initialOffsetY = ghostOffsetY;
+      }
+    }, { passive: true });
+
+    vContainer.addEventListener("touchmove", (e) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      ghostOffsetX = initialOffsetX + (e.touches[0].clientX - startX);
+      ghostOffsetY = initialOffsetY + (e.touches[0].clientY - startY);
+      sliderOffsetX.value = Math.max(-150, Math.min(150, ghostOffsetX));
+      valOffsetX.innerText = `${Math.round(ghostOffsetX)}px`;
+      sliderOffsetY.value = Math.max(-150, Math.min(150, ghostOffsetY));
+      valOffsetY.innerText = `${Math.round(ghostOffsetY)}px`;
+      drawGhostOverlay();
+    }, { passive: true });
+
+    vContainer.addEventListener("touchend", () => { isDragging = false; });
+
+    // 7. 滑桿事件監聽
+    sliderOpacity.addEventListener("input", (e) => {
+      ghostOpacity = parseInt(e.target.value) / 100.0;
+      valOpacity.innerText = `${e.target.value}%`;
+      drawGhostOverlay();
+    });
+
+    sliderScale.addEventListener("input", (e) => {
+      ghostScale = parseInt(e.target.value) / 100.0;
+      valScale.innerText = `${ghostScale.toFixed(1)}x`;
+      drawGhostOverlay();
+    });
+
+    sliderOffsetY.addEventListener("input", (e) => {
+      ghostOffsetY = parseInt(e.target.value);
+      valOffsetY.innerText = `${ghostOffsetY}px`;
+      drawGhostOverlay();
+    });
+
+    sliderOffsetX.addEventListener("input", (e) => {
+      ghostOffsetX = parseInt(e.target.value);
+      valOffsetX.innerText = `${ghostOffsetX}px`;
+      drawGhostOverlay();
+    });
+
+    btnResetTune.addEventListener("click", () => {
+      ghostOpacity = 0.85;
+      ghostScale = 1.0;
+      ghostOffsetX = 0;
+      ghostOffsetY = 0;
+      sliderOpacity.value = 85; valOpacity.innerText = "85%";
+      sliderScale.value = 100; valScale.innerText = "1.0x";
+      sliderOffsetY.value = 0; valOffsetY.innerText = "0px";
+      sliderOffsetX.value = 0; valOffsetX.innerText = "0px";
+      drawGhostOverlay();
+    });
+
+    // 8. 開關面板與相機切換
+    btnToggleTune.addEventListener("click", () => {
+      const isOpen = tuneDrawer.classList.toggle("show");
+      btnToggleTune.classList.toggle("active", isOpen);
+    });
+
+    btnMirror.addEventListener("click", () => {
+      isMirrored = !isMirrored;
+      updateMirrorClass();
+    });
+
+    btnSwitchCamera.addEventListener("click", () => {
+      facingMode = (facingMode === "user") ? "environment" : "user";
+      startCamera();
+    });
+
+    btnToggleGrid.addEventListener("click", () => {
+      showGrid = !showGrid;
+      btnToggleGrid.classList.toggle("active", showGrid);
+      drawGhostOverlay();
+    });
+
+    // 9. 📸 拍照截圖保存
+    btnSnapshot.addEventListener("click", () => {
+      // 螢幕白閃快門特效
+      const flash = document.getElementById("flash-overlay");
+      flash.classList.add("flashing");
+      setTimeout(() => flash.classList.remove("flashing"), 80);
+
+      // 合成相機畫面與骨架畫布
+      const exportCanvas = document.createElement("canvas");
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      const exCtx = exportCanvas.getContext("2d");
+
+      // 依鏡像翻轉繪製視訊底圖
+      if (isMirrored) {
+        exCtx.save();
+        exCtx.translate(exportCanvas.width, 0);
+        exCtx.scale(-1, 1);
+        exCtx.drawImage(video, 0, 0, exportCanvas.width, exportCanvas.height);
+        exCtx.restore();
+      } else {
+        exCtx.drawImage(video, 0, 0, exportCanvas.width, exportCanvas.height);
+      }
+
+      // 疊加骨架畫布
+      exCtx.drawImage(canvas, 0, 0);
+
+      // 壓印浮水印文字
+      exCtx.fillStyle = "rgba(0,0,0,0.6)";
+      exCtx.fillRect(16, exportCanvas.height - 48, 220, 32);
+      exCtx.fillStyle = "#00E676";
+      exCtx.font = "bold 13px Outfit, sans-serif";
+      exCtx.fillText(`⛳ HackMotion AR • ${currentPhaseKey}`, 28, exportCanvas.height - 28);
+
+      // 自動觸發下載
+      const link = document.createElement("a");
+      link.download = `Golf_AR_${currentPhaseKey}_${Date.now()}.jpg`;
+      link.href = exportCanvas.toDataURL("image/jpeg", 0.92);
+      link.click();
+    });
+
+    // 啟動流程
+    async function init() {
+      initPhaseBar();
+      await loadBenchmarkData();
+      await startCamera();
+    }
+
+    init();
+  </script>
+</body>
+</html>

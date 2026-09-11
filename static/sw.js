@@ -1,4 +1,4 @@
-const CACHE_NAME = 'golf-pwa-v2';
+const CACHE_NAME = 'golf-pwa-v27-min-frame';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();

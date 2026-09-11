@@ -94,7 +94,7 @@ def get_config(request: Request):
 
 @app.post("/api/upload_report")
 async def upload_report(payload: ReportUploadPayload, request: Request):
-    """接收前端 Edge AI 產生的 1+3+3+3 骨架合成照片組與 Tiger 十階段比對指標"""
+    """接收前端 Edge AI 產生的 1+3+3+3 骨架合成照片組與 HackMotion 十階段比對指標"""
     global latest_global_report, latest_server_host
     
     # 紀錄最新伺服器網址供 LINE 圖片下載
@@ -127,14 +127,14 @@ async def upload_report(payload: ReportUploadPayload, request: Request):
             "filenames": filenames,
             "score": payload.score,
             "similarity": payload.similarity or 87,
-            "spine": payload.spineAngle or int(payload.p1Spine or 32),
-            "turn": int(payload.p4Arm or payload.p4Turn or 148),
-            "p1Spine": payload.p1Spine or 32.0,
-            "p4Arm": payload.p4Arm or 148.0,
-            "p4Turn": payload.p4Turn or 148.0,
-            "p6Lag": payload.p6Lag or 26.0,
-            "p7Ext": payload.p7Ext or 3.0,
-            "p10Bal": payload.p10Bal or 132.0,
+            "spine": payload.spineAngle or int(payload.p1Spine or 5),
+            "turn": int(payload.p4Arm or payload.p4Turn or 145),
+            "p1Spine": payload.p1Spine or 5.0,
+            "p4Arm": payload.p4Arm or 145.0,
+            "p4Turn": payload.p4Turn or 145.0,
+            "p6Lag": payload.p6Lag or 41.0,
+            "p7Ext": payload.p7Ext or 1.0,
+            "p10Bal": payload.p10Bal or 154.0,
             "diffs": payload.diffs or {},
             "stageAdvice": payload.stageAdvice or [],
             "advice": payload.stageAdvice or payload.summaryAdvice or [],
@@ -151,7 +151,7 @@ async def upload_report(payload: ReportUploadPayload, request: Request):
         cleanup_old_reports()
 
         image_urls = [f"{latest_server_host}/static/reports/{fn}" for fn in filenames]
-        print(f"✅ 成功儲存 Tiger 對比骨架組 ({len(filenames)}張): {image_urls} (使用者: {user_id or '匿名'})")
+        print(f"✅ 成功儲存 HackMotion 對比骨架組 ({len(filenames)}張): {image_urls} (使用者: {user_id or '匿名'})")
         return {
             "status": "ok",
             "reportId": report_id,
@@ -160,8 +160,8 @@ async def upload_report(payload: ReportUploadPayload, request: Request):
         }
 
     except Exception as e:
-        print(f"❌ 儲存骨架報告失敗: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ 儲存骨架合成照片組失敗: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 def cleanup_old_reports():
     """自動清理超過 40 張的舊報告照片，節省硬碟空間"""
@@ -195,7 +195,7 @@ def build_entry_card() -> dict:
                 },
                 {
                     "type": "text",
-                    "text": "Tiger Woods 職業標準 P1~P10 揮桿對比分析",
+                    "text": "HackMotion 國際標準 P1~P10 揮桿對比分析",
                     "size": "xs",
                     "color": "#6B7280",
                     "margin": "xs"
@@ -210,7 +210,7 @@ def build_entry_card() -> dict:
             "contents": [
                 {
                     "type": "text",
-                    "text": "自動對齊 Tiger 十階段揮桿動作",
+                    "text": "自動對齊 HackMotion 十階段揮桿動作",
                     "weight": "bold",
                     "size": "md",
                     "color": "#111111"
@@ -304,10 +304,10 @@ def build_diagnosis_card(
     diffs: dict = None,
     advice: list = None
 ) -> dict:
-    """生成 100% 免費的 Reply Tiger 職業標準揮桿診斷處方箋 (處方箋小標題粗體、手部夾角對比)"""
+    """生成 100% 免費的 Reply HackMotion 國際標準揮桿診斷處方箋 (處方箋小標題粗體、手部夾角對比)"""
     diffs = diffs or {}
     
-    # 差值字串處理 (P1 脊椎前傾 與 P4 頂點手軀夾角)
+    # 差值字串處理 (P1 脊椎側傾 與 P4 頂點手軀夾角)
     spine_diff_val = diffs.get("spineDiff", 0)
     p4_arm_diff_val = diffs.get("p4ArmDiff", diffs.get("turnDiff", 0))
     spine_diff_str = f" (差 {spine_diff_val:+d}°)" if spine_diff_val != 0 else " (完美)"
@@ -318,9 +318,9 @@ def build_diagnosis_card(
         advice_contents = [format_advice_item(adv) for adv in advice]
     else:
         default_items = [
-            "P1 站姿：保持脊椎前傾 32°，雙手自然垂直放鬆，重心穩定極佳。",
-            "P4 上桿頂點：手軀夾角 148°，雙手高舉蓄力充分，頂點結構完美。",
-            "P7 擊球瞬間：手軀夾角 3°，左手臂垂直貫穿擊球點，力量傳導極佳！"
+            "P1 站姿：保持脊椎側傾 5°，雙手自然垂直放鬆，重心穩定極佳。",
+            "P4 上桿頂點：手軀夾角 145°，雙手高舉蓄力充分，頂點結構完美。",
+            "P7 擊球瞬間：手軀夾角 1°，左手臂垂直貫穿擊球點，力量傳導極佳！"
         ]
         advice_contents = [format_advice_item(adv) for adv in default_items]
 
@@ -339,7 +339,7 @@ def build_diagnosis_card(
                     "contents": [
                         {
                             "type": "text",
-                            "text": "🐅 Tiger 職業標準對比",
+                            "text": "🏌️‍♂️ HackMotion 標準對比",
                             "weight": "bold",
                             "size": "md",
                             "color": "#111111",
@@ -358,7 +358,7 @@ def build_diagnosis_card(
                 },
                 {
                     "type": "text",
-                    "text": f"P1脊椎前傾 {spine}°{spine_diff_str} ｜ P4手軀夾角 {turn}°{p4_diff_str}",
+                    "text": f"P1脊椎側傾 {spine}°{spine_diff_str} ｜ P4手軀夾角 {turn}°{p4_diff_str}",
                     "size": "xs",
                     "color": "#4B5563",
                     "margin": "xs"
@@ -515,7 +515,7 @@ def handle_text(event: MessageEvent):
             "    * 本系統之骨架偵測與對比數據由電腦視覺演算法即時估算，結果僅供自我練習輔助參考。\n"
             "    * 數值可能受攝影角度、衣著寬鬆度或光線影響而產生偏差，實際動作診斷與調整建議請務必以專業指導教練／老師現場指導為主。\n"
             "\n4. 版權與著作權聲明：\n"
-            "    * 系統對比採用之職業選手標準動作指標（包含 Tiger Woods 等相關基準數據與參考示意），僅作為學術研究、個人化運動力學分析與技術驗證之合理使用範圍，相關影像之原著作權仍歸原著作權人與轉播單位所有。\n\n"
+            "    * 系統對比採用之職業選手標準動作指標（包含 HackMotion 等相關基準數據與參考示意），僅作為學術研究、個人化運動力學分析與技術驗證之合理使用範圍，相關影像之原著作權仍歸原著作權人所有。\n\n"
             "以下為建議拍攝角度📸（❗請一氣呵成揮竿，避免試揮）"
         )
         guide_img_url = f"{base_url.rstrip('/')}/static/guide_camera_angle.jpg"

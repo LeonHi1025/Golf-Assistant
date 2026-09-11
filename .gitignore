@@ -5,3 +5,6 @@ __pycache__/
 test_swing.mp4
 test_result.jpg
 static/reports/
+*.mp4
+*.MP4
+static/test_frames/
