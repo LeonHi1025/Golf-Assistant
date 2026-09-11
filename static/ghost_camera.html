@@ -165,28 +165,6 @@
       box-shadow: 0 0 10px var(--accent-glow);
     }
 
-    /* 懸浮提示膠囊 */
-    #tip-pill {
-      position: absolute;
-      top: 64px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 5px 14px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #CBD5E1;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      pointer-events: none;
-      transition: opacity 0.3s;
-    }
 
     /* 底部面板控制器 */
     #bottom-panel {
@@ -396,11 +374,185 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    /* 照片預覽彈窗 (相容 iOS Safari / LINE / Android) */
+    #preview-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 1;
+      transition: opacity 0.2s ease;
+    }
+
+    #preview-modal.hidden {
+      display: none !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .modal-card {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 420px;
+      max-height: 92vh;
+      background: #131722;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 20px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalPop {
+      0% { transform: scale(0.92); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #F8FAFC;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #94A3B8;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-preview-container {
+      width: 100%;
+      max-height: 52vh;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #modal-preview-img {
+      width: 100%;
+      height: 100%;
+      max-height: 52vh;
+      object-fit: contain;
+      display: block;
+      -webkit-touch-callout: default !important; /* iOS 允許長按儲存 */
+      user-select: auto !important;
+    }
+
+    .modal-tip {
+      font-size: 11px;
+      color: #CBD5E1;
+      text-align: center;
+      line-height: 1.4;
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      padding: 7px 10px;
+      border-radius: 8px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn-share {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      background: #00E676;
+      color: #09090B;
+      border: none;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 4px 14px rgba(0, 230, 118, 0.3);
+    }
+
+    .action-btn-share:active {
+      transform: scale(0.96);
+    }
+
+    .action-btn-download {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #F8FAFC;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
   </style>
 </head>
 <body>
 
   <div id="flash-overlay"></div>
+
+  <!-- 拍照預覽彈窗 Modal (相容 iOS / LINE / Android) -->
+  <div id="preview-modal" class="hidden">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">📸 拍照成功</span>
+        <button class="modal-close" id="btn-close-modal">✕</button>
+      </div>
+      <div class="modal-preview-container">
+        <img id="modal-preview-img" alt="揮桿姿勢截圖" />
+      </div>
+      <div class="modal-tip">
+        📱 手機用戶可<b>長按上方圖片</b>儲存至手機相簿，或點擊下方按鈕：
+      </div>
+      <div class="modal-actions">
+        <button class="action-btn-share" id="btn-share-snapshot">
+          <span>📲 儲存 / 分享相片</span>
+        </button>
+        <button class="action-btn-download" id="btn-download-snapshot">
+          <span>⬇️ 下載圖檔</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- 頂部導覽列 -->
   <header>
@@ -417,10 +569,6 @@
     </div>
   </header>
 
-  <!-- 懸浮提示條 -->
-  <div id="tip-pill">
-    <span>💡 調整站位，使身體輪廓貼合紫色幽靈骨架</span>
-  </div>
 
   <!-- 主視窗（即時相機 + 幽靈骨架 Canvas） -->
   <div id="viewport-container">
@@ -654,12 +802,12 @@
       const h = canvas.height;
       if (w === 0 || h === 0) return;
 
-      // 5a. 繪製對齊輔助參考網格（中軸線與地面水平線）
+      // 5a. 繪製對齊輔助參考網格（深色高對比中軸線與地面水平線）
       if (showGrid) {
         ctx.save();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 6]);
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.82)"; // 深黑灰色深色線條
+        ctx.lineWidth = 2.0;
+        ctx.setLineDash([6, 6]);
 
         // 中央垂直中軸線
         ctx.beginPath();
@@ -673,12 +821,19 @@
         ctx.lineTo(w, h * 0.85);
         ctx.stroke();
 
-        // 雙腳參考落點標記
+        // 雙腳參考落點標記（深色框線 + 半透明深色底）
         ctx.setLineDash([]);
-        ctx.strokeStyle = "rgba(0, 230, 118, 0.35)";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(w * 0.5 - 75, h * 0.83, 35, 14); // 左腳底
-        ctx.strokeRect(w * 0.5 + 40, h * 0.83, 35, 14); // 右腳底
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.90)";
+        ctx.fillStyle = "rgba(15, 23, 42, 0.40)";
+        ctx.lineWidth = 2.5;
+
+        // 左腳底框
+        ctx.fillRect(w * 0.5 - 75, h * 0.83, 35, 14);
+        ctx.strokeRect(w * 0.5 - 75, h * 0.83, 35, 14);
+
+        // 右腳底框
+        ctx.fillRect(w * 0.5 + 40, h * 0.83, 35, 14);
+        ctx.strokeRect(w * 0.5 + 40, h * 0.83, 35, 14);
         ctx.restore();
       }
 
@@ -880,44 +1035,141 @@
       drawGhostOverlay();
     });
 
-    // 9. 📸 拍照截圖保存
+    // 合成微音效：快門喀嚓聲 (Synthesized Camera Click)
+    function playShutterSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.09);
+      } catch (e) {}
+    }
+
+    // 9. 📸 拍照截圖保存（完美相容 iOS Safari / LINE / Android）
+    let currentSnapshotBlob = null;
+    let currentSnapshotDataUrl = null;
+
     btnSnapshot.addEventListener("click", () => {
-      // 螢幕白閃快門特效
+      // 1. 快門音效與手機觸覺震動
+      playShutterSound();
+      if (navigator.vibrate) {
+        try { navigator.vibrate(50); } catch (e) {}
+      }
+
+      // 2. 螢幕白閃快門特效
       const flash = document.getElementById("flash-overlay");
       flash.classList.add("flashing");
       setTimeout(() => flash.classList.remove("flashing"), 80);
 
-      // 合成相機畫面與骨架畫布
+      // 3. 取得原始畫布與視訊尺寸
+      const srcW = canvas.width || 720;
+      const srcH = canvas.height || 1280;
+
       const exportCanvas = document.createElement("canvas");
-      exportCanvas.width = canvas.width;
-      exportCanvas.height = canvas.height;
+      exportCanvas.width = srcW;
+      exportCanvas.height = srcH;
       const exCtx = exportCanvas.getContext("2d");
 
-      // 依鏡像翻轉繪製視訊底圖
-      if (isMirrored) {
-        exCtx.save();
-        exCtx.translate(exportCanvas.width, 0);
-        exCtx.scale(-1, 1);
-        exCtx.drawImage(video, 0, 0, exportCanvas.width, exportCanvas.height);
-        exCtx.restore();
-      } else {
-        exCtx.drawImage(video, 0, 0, exportCanvas.width, exportCanvas.height);
+      try {
+        // 依鏡像模式繪製相機視訊畫面
+        if (isMirrored) {
+          exCtx.save();
+          exCtx.translate(srcW, 0);
+          exCtx.scale(-1, 1);
+          exCtx.drawImage(video, 0, 0, srcW, srcH);
+          exCtx.restore();
+        } else {
+          exCtx.drawImage(video, 0, 0, srcW, srcH);
+        }
+
+        // 疊加骨架畫布
+        exCtx.drawImage(canvas, 0, 0, srcW, srcH);
+
+        // 壓印浮水印標籤
+        exCtx.fillStyle = "rgba(0,0,0,0.65)";
+        exCtx.fillRect(20, srcH - 52, 240, 36);
+        exCtx.fillStyle = "#00E676";
+        exCtx.font = "bold 14px Outfit, sans-serif";
+        exCtx.fillText(`⛳ HackMotion AR • ${currentPhaseKey}`, 32, srcH - 29);
+
+        currentSnapshotDataUrl = exportCanvas.toDataURL("image/jpeg", 0.95);
+
+        // 彈出預覽彈窗供手機長按儲存或原生分享
+        const modalImg = document.getElementById("modal-preview-img");
+        modalImg.src = currentSnapshotDataUrl;
+        document.getElementById("preview-modal").classList.remove("hidden");
+
+        // 生成 Blob 供 Web Share API 調用
+        exportCanvas.toBlob((blob) => {
+          currentSnapshotBlob = blob;
+        }, "image/jpeg", 0.95);
+
+        // 若支援直接下載的桌機瀏覽器，同步嘗試觸發
+        try {
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          if (!isMobile) {
+            const link = document.createElement("a");
+            link.download = `Golf_AR_${currentPhaseKey}_${Date.now()}.jpg`;
+            link.href = currentSnapshotDataUrl;
+            link.click();
+          }
+        } catch (e) {}
+
+      } catch (err) {
+        console.error("截圖合成失敗:", err);
+        alert("截圖失敗，請稍候重試！");
       }
+    });
 
-      // 疊加骨架畫布
-      exCtx.drawImage(canvas, 0, 0);
+    // 彈窗按鈕事件監聽
+    document.getElementById("btn-close-modal").addEventListener("click", () => {
+      document.getElementById("preview-modal").classList.add("hidden");
+    });
+    document.getElementById("modal-backdrop").addEventListener("click", () => {
+      document.getElementById("preview-modal").classList.add("hidden");
+    });
 
-      // 壓印浮水印文字
-      exCtx.fillStyle = "rgba(0,0,0,0.6)";
-      exCtx.fillRect(16, exportCanvas.height - 48, 220, 32);
-      exCtx.fillStyle = "#00E676";
-      exCtx.font = "bold 13px Outfit, sans-serif";
-      exCtx.fillText(`⛳ HackMotion AR • ${currentPhaseKey}`, 28, exportCanvas.height - 28);
+    // 📲 原生儲存 / 分享按鈕 (呼叫系統相簿分享面板)
+    document.getElementById("btn-share-snapshot").addEventListener("click", async () => {
+      const fileName = `Golf_AR_${currentPhaseKey}_${Date.now()}.jpg`;
+      if (currentSnapshotBlob && navigator.canShare) {
+        try {
+          const file = new File([currentSnapshotBlob], fileName, { type: "image/jpeg" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: "Golf Swing AR Snapshot",
+              text: `Golf AR 幽靈骨架對齊截圖 (${currentPhaseKey})`
+            });
+            return;
+          }
+        } catch (e) {
+          if (e.name !== "AbortError") {
+            console.warn("Web Share API 失敗:", e);
+          }
+        }
+      }
+      // 不支援 Web Share API 時提示長按
+      alert("📱 請直接「長按上方圖片」並選擇「儲存影像」加入手機相簿！");
+    });
 
-      // 自動觸發下載
+    // ⬇️ 下載圖檔按鈕
+    document.getElementById("btn-download-snapshot").addEventListener("click", () => {
+      if (!currentSnapshotDataUrl) return;
       const link = document.createElement("a");
       link.download = `Golf_AR_${currentPhaseKey}_${Date.now()}.jpg`;
-      link.href = exportCanvas.toDataURL("image/jpeg", 0.92);
+      link.href = currentSnapshotDataUrl;
       link.click();
     });
 

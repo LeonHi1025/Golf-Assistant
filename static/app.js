@@ -126,7 +126,7 @@ async function initSystem() {
         });
         console.log("✅ MediaPipe Pose Full (CPU fallback)");
       } catch (e2) {
-        alert("AI 模型載入失敗，請確認網路連線！");
+        console.warn("⚠️ AI 骨架模型載入異常 (已轉靜默模式):", e2);
       }
     }
   }
@@ -411,8 +411,17 @@ async function handleVideoFile(file) {
   // }
 
   if (!poseLandmarker) {
-    alert("AI 骨架模型仍在載入中，請稍候 2 秒再試！");
-    return;
+    progressContainer.style.display = "block";
+    statusMsg.innerText = "正在等待 AI 模型就緒...";
+    let waitCount = 0;
+    while (!poseLandmarker && waitCount < 30) {
+      await new Promise(r => setTimeout(r, 200));
+      waitCount++;
+    }
+    if (!poseLandmarker) {
+      statusMsg.innerText = "模型載入超時，請重新選取影片";
+      return;
+    }
   }
 
   progressContainer.style.display = "block";
