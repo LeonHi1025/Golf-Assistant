@@ -12,6 +12,7 @@
 | :--- | :--- | :--- |
 | **LIFF ID** | `2011445978-6xeS4R70` | 綁定至 LINE Developers LIFF 應用程式 |
 | **前端 PWA 網址** | `https://leonhi1025.github.io/Golf-Assistant/static/index.html` | 託管於 GitHub Pages，支援手機 GPU 本地運算 |
+| **AR 幽靈骨架相機** | `https://leonhi1025.github.io/Golf-Assistant/static/ghost_camera.html` | 60fps 零負載向量浮水印即時站姿對位 |
 | **後端 Webhook 網址**| `https://golf-assistant.onrender.com` | 託管於 Render (FastAPI)，負責 Webhook 與圖片轉發 |
 | **GitHub 倉庫** | `https://github.com/LeonHi1025/Golf-Assistant` | `main` 分支 |
 
@@ -27,29 +28,32 @@ sequenceDiagram
     participant Server as 🖥️ 後端伺服器 (FastAPI)
     participant LINE as 💬 LINE 官方 Bot
 
-    User->>Web: 選取 3 秒揮桿影片
-    Note over Web: 1. 手機 GPU 即時計算 P1/P4/P7 骨架<br/>離屏 Canvas 合成 3 連格分析大圖 (極簡標籤)
-    Web->>Server: 2. POST /api/upload_report (await 嚴格檢驗 HTTP 200)
-    Note over Server: 解碼 Base64 存入 /static/reports/xxx.jpg<br/>【防護】自動清理舊圖，容量永遠 < 5MB
-    Web->>LINE: 3. LIFF 在聊天室自動送出「查看本次揮桿診斷報告」
-    LINE->>Server: Webhook 轉發「查看本次揮桿診斷報告」
-    Note over Server: 4. 比對找到該使用者的骨架圖片與評分數據
-    Server-->>LINE: reply_message (獨立骨架照片 + 純文字數據處方箋)
-    LINE-->>User: 官方帳號回傳：🖼️ 骨架分析照 + ⛳ AI 處方箋
+    User->>Web: 1. 點擊「分析」上傳 3~10 秒揮桿影片 (或使用 AR 相機)
+    Note over Web: 2. 手機 GPU (MediaPipe) 即時演算 P1~P10 十大相位<br/>合成【3+4+3】高解析對比長圖 (紫/綠雙色骨架)<br/>時序線性插值 + 手腕握把強制鎖鏈防斷肢
+    Web->>Server: 3. POST /api/upload_report (await 嚴格檢驗 HTTP 200)
+    Note over Server: 4. 解碼存入 /static/reports/xxx.jpg<br/>【防護】自動清理舊圖，容量永遠 < 5MB
+    Web->>LINE: 5. 自動送出「查看本次揮桿診斷報告」
+    Note over Web: 6. 呼叫 liff.closeWindow() 自動關閉網頁視窗 (強制切回聊天室)
+    LINE->>Server: 7. Webhook 轉發「查看本次揮桿診斷報告」
+    Note over Server: 8. 比對找到使用者報告，偏差>=10°標題套用紅字粗體
+    Server-->>LINE: 9. reply_message 回傳：<br/>• 📊 揮桿診斷小卡 (偏差紅字警示 + 底部金色小 Tip)<br/>• 🖼️ 3 組 10 相位高清骨架對照圖
+    LINE-->>User: 10. 使用者於聊天室查閱診斷書，可點金色 Tip 直達 AR 骨架相機
 ```
 
 ### 核心技術特點：
-1. **0% 伺服器 AI 負載**：
+1. **0% 伺服器 AI 負載（Edge Computing）**：
    - 影片解碼、MediaPipe 姿態估計、角度計算 100% 在使用者手機 GPU（WebGL/Wasm）上運算。
-   - 伺服器記憶體佔用僅約 **35 MB**，不耗費伺服器 CPU。
-2. **100% 免費回覆機制 (Zero Push Quota)**：
+   - 伺服器記憶體佔用僅約 **35 MB**，不耗費伺服器 CPU 算力。
+2. **分析完成自動閉合，強制切回 LINE 體驗**：
+   - 前端上傳同步完成後自動透過 `liff.closeWindow()` 關閉網頁，引導使用者回到 LINE 聊天室直覺查閱診斷小卡與照片。
+3. **100% 免費回覆機制 (Zero Push Quota)**：
    - 官方帳號使用 `reply_message`（搭配 `reply_token`）發送，完全不計入 LINE 官方每月 200 則的 Push 訊息上限。
-3. **自動磁碟垃圾回收防護 (Disk Safeguard)**：
+4. **自動磁碟垃圾回收防護 (Disk Safeguard)**：
    - 伺服器常態只保留最新 30 張分析截圖，超過 40 張自動刪除舊檔，硬碟空間永遠鎖定在 **5 MB 以內**。
-4. **手機端快取破壞策略 (Cache Busting)**：
-   - 引入 `app.js?v=20260905_4` 與 Service Worker `golf-pwa-v2`，確保手機 LINE 內嵌瀏覽器隨時載入最新程式碼。
-5. **定時喚醒與防休眠 (Keep-Alive CronJob)**：
-   - 設定 CronJob 每 10 分鐘自動發送 HTTP Ping (Tick)，防止 Render 免費實例因無訪問進入休眠，保持 24/7 隨時熱機即時回覆。
+5. **AR 幽靈骨架即時輔助系統**：
+   - 獨立輕量 AR 相機（`ghost_camera.html`），純靜態向量圖層疊加，零 AI 負擔提供即時 60fps 站姿校準。
+6. **手機端快取破壞策略 (Cache Busting)**：
+   - 引入版本號控管（如 `app.js?v=...`）與 Service Worker，確保手機 LINE 內嵌瀏覽器隨時載入最新程式碼。
 
 ---
 
@@ -305,6 +309,38 @@ sequenceDiagram
   - 徹底移除 `alert("AI 模型載入失敗...")` 彈窗，改為靜默 console 紀錄。
   - 影片選取時若模型尚未就緒，改由背景非阻塞迴圈自動等待就緒，進度條直接顯示「正在等待 AI 模型就緒...」，不再彈出中斷性對話框。
   - 快取版本升級為 `app.js?v=20260911_quiet_loading`，Service Worker 快取為 `golf-pwa-v28-quiet-loading`。
+
+### 🎯 第二十三階段：AR 幽靈骨架相機快門震動回饋、拍照預覽彈窗與高對比深色站姿網格
+- **核心動機與痛點**：
+  - 部分手機（尤其 iOS Safari / LINE 內嵌瀏覽器）點擊拍照後因瀏覽器下載阻擋機制而毫無反應，使用者無法確認是否成功拍攝。
+  - 站姿網格線條在強光下對比度不足，且畫面上方的操作指引字體產生干擾。
+- **具體實作**：
+  - **拍照反饋升級**：整合 Web Audio API 合成擬真機械快門聲、觸覺震動（Haptic Feedback `navigator.vibrate`）與白色閃爍動畫。
+  - **預覽彈窗（Snapshot Preview Modal）**：拍照後自動彈出照片預覽層，支援手機「長按存入相簿」與原生 Web Share API（一鍵轉傳 LINE/相簿）。
+  - **視覺優化**：移除上方干擾性的「調整站位」字樣；站姿網格加深為高對比深色（`rgba(15, 23, 42, 0.82)`）。
+
+### 🎯 第二十四階段：全面去品牌化（移除 HackMotion 相關標籤與字眼）
+- **核心動機**：
+  - 將系統全站（網頁端、後端回覆、分析圖例、處方箋文字）去品牌化，改採通用、專業之「國際標準 / 職業標準」描述。
+- **具體實作**：
+  - **`static/app.js`**：P1～P10 處方建議改為「與標準對齊良好」、「標準 43°」等專業通用描述；評分改為「標準相似度」；照片圖例更新為「🟣 職業標準」。
+  - **`main.py`**：LINE Flex 卡片標題改為「🏌️‍♂️ 標準揮桿對比」，說明改為「自動對齊十階段揮桿動作」；更新免責與版權說明。
+  - **`static/index.html` & `ghost_camera.html`**：副標題及快門浮水印壓印全面改為「國際標準 / 揮桿標準 AR」。
+
+### 🎯 第二十五階段：LINE 診斷小卡「偏差過大紅色粗體醒目化」與「分析完自動關閉頁面返回 LINE」
+- **核心動機**：
+  - 提升診斷處方閱讀體驗：當使用者某項動作角度偏差過大時，第一時間能一眼抓住改善關鍵。
+  - 改善操作閉環：前端分析完成後，避免使用者停留在網頁乾等，自動強制將使用者帶回 LINE 聊天室檢視結果。
+- **具體實作**：
+  - **標題紅字醒目化 (`main.py`)**：在 `format_advice_item` 增加角度偏差解析，當該相位角度偏差 $\ge 10^\circ$ 或提供修正建議時，標題（如 `• P1 站姿：`、`• P4 上桿頂點：`）自動轉為鮮明**紅色粗體（`#DC2626`）**；對齊良好者維持深色粗體（`#111827`）。
+  - **分析完自動關閉 (`static/app.js`)**：前端資料同步完成後，透過 `liff.sendMessages` 送出報告請求，並於 400ms 平滑延遲後自動呼叫 `liff.closeWindow()` 關閉網頁，無縫切回 LINE 聊天室接收診斷小卡。
+
+### 🎯 第二十六階段：LINE 診斷小卡底部新增「金色小 Tip」直達 AR 幽靈骨架相機
+- **核心動機**：
+  - 建立「診斷 ➔ 即時校正」的完整教學閉環，引導使用者在看完診斷小卡後，直接利用 AR 幽靈骨架相機進行站姿與動作調整。
+- **具體實作**：
+  - 在 LINE Flex 診斷處方箋卡片 Footer（「再次揮桿分析」按鈕下方），新增醒目**琥珀金色粗體文字（`#D97706`）**：`✨ 小tip：可用幽靈骨架調整姿勢哦！`。
+  - 綁定 URI Action，使用者於 LINE 聊天室點擊該行文字即可直達開啟 AR 幽靈骨架相機（`ghost_camera.html`）。
 
 ---
 
