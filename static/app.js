@@ -1898,12 +1898,21 @@ window.shareToLine = async function (isAuto = false) {
   // 1. 若在 LINE LIFF App 環境且初始化成功
   if (window.liff && isLiffInitialized) {
     if (liff.isLoggedIn() && liff.isInClient()) {
-      try {
         await liff.sendMessages([{ type: "text", text: triggerMsg }]);
-        btnShareLine.innerText = "✅ 診斷報告已請求！(點此關閉)";
-        btnShareLine.style.background = "#059669";
-        btnShareLine.onclick = () => liff.closeWindow();
         console.log("✅ LIFF sendMessages 成功發送觸發文字！");
+        btnShareLine.innerText = "✅ 分析完成！正在跳轉至 LINE 查看診斷小卡...";
+        btnShareLine.style.background = "#059669";
+        statusMsg.innerText = "✅ 分析完成！即將自動關閉頁面，請於 LINE 聊天室查看診斷小卡...";
+
+        // 核心功能：分析完成後自動切掉頁面，強制引導使用者回到 LINE 查看診斷小卡
+        setTimeout(() => {
+          try {
+            liff.closeWindow();
+          } catch (e) {
+            console.warn("liff.closeWindow 異常，嘗試 window.close():", e);
+            window.close();
+          }
+        }, 400);
         return;
       } catch (err) {
         console.warn("LIFF sendMessages 失敗:", err);

@@ -266,6 +266,17 @@ def format_advice_item(adv_str: str) -> dict:
         title = parts[0].strip() + "】"
         desc = parts[1].strip()
 
+    # 判斷是否「差太多度」：若角度差 >= 10° 或帶有角度差及建議，以紅色粗體醒目標示標題用於提醒使用者
+    is_warning = False
+    m = re.search(r"\(差\s*([+-]?\d+)°\)", desc)
+    if m:
+        if abs(int(m.group(1))) >= 10:
+            is_warning = True
+    elif "差" in desc and "建議" in desc:
+        is_warning = True
+
+    title_color = "#DC2626" if is_warning else "#111827"
+
     if title:
         return {
             "type": "text",
@@ -277,7 +288,7 @@ def format_advice_item(adv_str: str) -> dict:
                     "type": "span",
                     "text": f"• {title} ",
                     "weight": "bold",
-                    "color": "#111827"
+                    "color": title_color
                 },
                 {
                     "type": "span",
