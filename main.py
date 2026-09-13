@@ -405,6 +405,20 @@ def build_diagnosis_card(
                         "label": "再次揮桿分析",
                         "uri": get_app_url()
                     }
+                },
+                {
+                    "type": "text",
+                    "text": "✨ 小tip：可用幽靈骨架調整姿勢哦！",
+                    "size": "xxs",
+                    "color": "#D97706",
+                    "weight": "bold",
+                    "align": "center",
+                    "margin": "md",
+                    "action": {
+                        "type": "uri",
+                        "label": "幽靈骨架相機",
+                        "uri": f"{(SERVER_BASE_URL or latest_server_host or 'https://golf-assistant.onrender.com').rstrip('/')}/static/ghost_camera.html"
+                    }
                 }
             ]
         }
