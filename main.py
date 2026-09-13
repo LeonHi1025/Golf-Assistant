@@ -195,7 +195,7 @@ def build_entry_card() -> dict:
                 },
                 {
                     "type": "text",
-                    "text": "HackMotion 國際標準 P1~P10 揮桿對比分析",
+                    "text": "P1~P10 揮桿對比分析",
                     "size": "xs",
                     "color": "#6B7280",
                     "margin": "xs"
@@ -210,7 +210,7 @@ def build_entry_card() -> dict:
             "contents": [
                 {
                     "type": "text",
-                    "text": "自動對齊 HackMotion 十階段揮桿動作",
+                    "text": "自動對齊十階段揮桿動作",
                     "weight": "bold",
                     "size": "md",
                     "color": "#111111"
@@ -304,7 +304,7 @@ def build_diagnosis_card(
     diffs: dict = None,
     advice: list = None
 ) -> dict:
-    """生成 100% 免費的 Reply HackMotion 國際標準揮桿診斷處方箋 (處方箋小標題粗體、手部夾角對比)"""
+    """揮桿診斷 (手部夾角對比)"""
     diffs = diffs or {}
     
     # 差值字串處理 (P1 脊椎側傾 與 P4 頂點手軀夾角)
@@ -339,7 +339,7 @@ def build_diagnosis_card(
                     "contents": [
                         {
                             "type": "text",
-                            "text": "🏌️‍♂️ HackMotion 標準對比",
+                            "text": "🏌️‍♂️ 標準揮桿對比",
                             "weight": "bold",
                             "size": "md",
                             "color": "#111111",
@@ -391,7 +391,7 @@ def build_diagnosis_card(
                     "color": "#2D3748",
                     "action": {
                         "type": "uri",
-                        "label": "🏌️ 再次揮桿分析",
+                        "label": "再次揮桿分析",
                         "uri": get_app_url()
                     }
                 }
@@ -481,7 +481,7 @@ def handle_text(event: MessageEvent):
             flex_json = build_diagnosis_card()
             reply_messages.append(
                 FlexMessage(
-                    alt_text="⛳ 您的專屬高爾夫揮桿診斷處方箋已出爐！",
+                    alt_text="⛳ 您的專屬高爾夫揮桿診斷已出爐！",
                     contents=FlexContainer.from_json(json.dumps(flex_json))
                 )
             )
@@ -506,17 +506,13 @@ def handle_text(event: MessageEvent):
             "使用說明與注意事項\n\n"
             "1. 操作方式：\n"
             "    * 請上傳正面（Face-on）全身入鏡之揮桿影片或慢動作影片（建議 3～10 秒為佳，過長易增加手機運算負擔）。\n"
+            "    * 也可使用AR骨架相機進行及時姿勢調整\n"
             "    * 系統將於手機端本地分析骨架幾何角度，完成後會自動回傳診斷卡片至 LINE 聊天室。\n"
-            "\n2. 服務運作時段：\n"
-            "    * 每日 08:00 ～ 22:00（Asia/Taipei）正常在線服務。\n"
-            "    * 夜間（22:00 ～ 08:00）主機進入休眠狀態；\n"
-            "    * 若於離線時段使用，首次Hi進行測試，若無反應需等候約 25～30 秒進行伺服器喚醒。\n"
-            "\n3. AI 分析免責聲明：\n"
-            "    * 本系統之骨架偵測與對比數據由電腦視覺演算法即時估算，結果僅供自我練習輔助參考。\n"
-            "    * 數值可能受攝影角度、衣著寬鬆度或光線影響而產生偏差，實際動作診斷與調整建議請務必以專業指導教練／老師現場指導為主。\n"
-            "\n4. 版權與著作權聲明：\n"
-            "    * 系統對比採用之職業選手標準動作指標（包含 HackMotion 等相關基準數據與參考示意），僅作為學術研究、個人化運動力學分析與技術驗證之合理使用範圍，相關影像之原著作權仍歸原著作權人所有。\n\n"
-            "以下為建議拍攝角度📸（❗請一氣呵成揮竿，避免試揮）"
+            "\n2. 使用相關說明：\n"
+            "    * 首次點擊『Hi!』進行測試，若無反應需等候約 25～30 秒進行伺服器喚醒。\n"
+            "    * 相關權益於最新公告，可前往查看\n"
+            "    * 只供參考，實際狀況以現場教練指導為主\n"
+            "\n以下為建議拍攝角度📸（❗請一氣呵成揮竿，避免試揮）"
         )
         guide_img_url = f"{base_url.rstrip('/')}/static/guide_camera_angle.jpg"
         reply_messages = [
@@ -530,7 +526,7 @@ def handle_text(event: MessageEvent):
     # 4. 喚醒與伺服器狀態查詢：Hi! Wake Up!
     elif "wake up" in normalized_text or "wake" in normalized_text:
         reply_messages = [
-            TextMessage(text="我在8:00~22:00都是醒著哦♥️，可以直接點擊左下角“分析”使用（❗請一氣呵成揮竿，避免試揮），若在其他時段找我，請等我起床💤💤，我會馬上回覆你😀")
+            TextMessage(text="你好！！點擊左下角『分析』，若沒反應，請等我起床💤💤，我會馬上回覆你😀  \n（❗請一氣呵成揮竿，避免試揮）")
         ]
 
     # 5. 彩蛋關鍵字：謝亞諺
@@ -583,7 +579,7 @@ def handle_video(event: MessageEvent):
                 reply_token=event.reply_token,
                 messages=[
                     FlexMessage(
-                        alt_text="🏌️ 請點擊按鈕開啟分析儀選取影片！（❗請一氣呵成揮竿，避免試揮）",
+                        alt_text="請點擊按鈕開啟分析儀選取影片！（❗請一氣呵成揮竿，避免試揮）",
                         contents=FlexContainer.from_json(json.dumps(flex_json))
                     )
                 ]

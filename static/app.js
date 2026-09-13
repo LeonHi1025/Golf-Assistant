@@ -1031,7 +1031,7 @@ async function handleVideoFile(file) {
   if (turnEl) turnEl.innerText = `${armAngles.P4}°`;
   
   document.getElementById("score-val").innerHTML = `${similarity}<span style="font-size: 18px; color: #71717A;">%</span>`;
-  document.getElementById("score-grade").innerText = `HackMotion 相似度 ${similarity}% (${similarity >= 88 ? '標準級對齊' : '進階微調建議'})`;
+  document.getElementById("score-grade").innerText = `標準相似度 ${similarity}% (${similarity >= 88 ? '標準級對齊' : '進階微調建議'})`;
 
   // 10. 產生【3 + 4 + 3】分組照片組（粗深紫色職業標準桿身 + 亮黃色學員桿身直覺對比）
   // 組 1（上揚）：P1 準備站姿, P2 起桿水平, P3 上桿半程 (3格)
@@ -1082,7 +1082,7 @@ async function handleVideoFile(file) {
   URL.revokeObjectURL(fileUrl);
 
   // 11. 使用 await 嚴格確保上傳至後端伺服器 (HTTP 200 OK) 後，才呼叫 LIFF 發送
-  statusMsg.innerText = "正在同步 HackMotion 對比診斷報告至伺服器...";
+  statusMsg.innerText = "正在同步揮桿對比診斷報告至伺服器...";
   btnShareLine.innerText = "⏳ 骨架報告同步中...";
   btnShareLine.disabled = true;
 
@@ -1260,7 +1260,7 @@ function createCompositeSetImage(panels) {
   ctx.font = "bold 11px sans-serif";
   ctx.textAlign = "left";
   ctx.fillStyle = "#C084FC";
-  ctx.fillText("🟣 職業標準 (HackMotion)", 24, totalH - 19);
+  ctx.fillText("🟣 職業標準", 24, totalH - 19);
   ctx.fillStyle = "#00E676";
   ctx.fillText("🟢 學員骨架", 145, totalH - 19);
 
@@ -1739,7 +1739,7 @@ function compareWithPro(userMetrics, pro) {
   // P1 準備站姿 (Address) - 專注脊椎傾角與中軸
   let p1Text = "";
   if (Math.abs(spineDiff) <= 10) {
-    p1Text = `P1 站姿：脊椎側傾 ${userMetrics.spineAngle}° (與 HackMotion 標準對齊良好)。雙手自然垂於兩胯中軸，站姿穩定極佳！`;
+    p1Text = `P1 站姿：脊椎側傾 ${userMetrics.spineAngle}° (與標準對齊良好)。雙手自然垂於兩胯中軸，站姿穩定極佳！`;
   } else if (spineDiff > 10) {
     p1Text = `P1 站姿：脊椎側傾 ${userMetrics.spineAngle}° (差 +${spineDiff}°)。建議：上半身稍微挺起一些、骨盆微縮，避免站姿過度下趴。`;
   } else {
@@ -1747,10 +1747,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p1Text);
 
-  // P2 起桿水平 (Takeaway) - 手軀夾角 (HackMotion 43°)
+  // P2 起桿水平 (Takeaway) - 手軀夾角 (標準 43°)
   let p2Text = "";
   if (Math.abs(diffP2) <= 10) {
-    p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (與 HackMotion 43° 對齊良好)。手臂維持寬闊大三角形，引桿路徑標準！`;
+    p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (與標準 43° 對齊良好)。手臂維持寬闊大三角形，引桿路徑標準！`;
   } else if (diffP2 > 10) {
     p2Text = `P2 起桿：手軀夾角 ${userArm.P2}° (差 +${diffP2}°)。建議：雙手勿太早向上抬起，手臂打直並以胸口轉動帶動手臂平順後移。`;
   } else {
@@ -1758,10 +1758,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p2Text);
 
-  // P3 上桿半程 (Mid-Backswing) - 手軀夾角 (HackMotion 99°)
+  // P3 上桿半程 (Mid-Backswing) - 手軀夾角 (標準 99°)
   let p3Text = "";
   if (Math.abs(diffP3) <= 10) {
-    p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (與 HackMotion 99° 對齊良好)。手腕自然立腕延伸，上揚軌跡扎實！`;
+    p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (與標準 99° 對齊良好)。手腕自然立腕延伸，上揚軌跡扎實！`;
   } else if (diffP3 > 10) {
     p3Text = `P3 上桿半程：手軀夾角 ${userArm.P3}° (差 +${diffP3}°)。建議：手部抬升稍高，注意保持左臂寬度，順勢立腕而勿過度上拉。`;
   } else {
@@ -1769,10 +1769,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p3Text);
 
-  // P4 上桿頂點 (Top of Swing) - 手軀夾角 (HackMotion 145°)
+  // P4 上桿頂點 (Top of Swing) - 手軀夾角 (標準 145°)
   let p4Text = "";
   if (Math.abs(diffP4) <= 10) {
-    p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (與 HackMotion 145° 對齊良好)。雙手高舉蓄力充分，頂點結構優異！`;
+    p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (與標準 145° 對齊良好)。雙手高舉蓄力充分，頂點結構優異！`;
   } else if (diffP4 < -10) {
     p4Text = `P4 上桿頂點：手軀夾角 ${userArm.P4}° (差 ${diffP4}°)。建議：頂點時雙手再往上抬高約 5 公分，左臂充分打直蓄滿爆發力。`;
   } else {
@@ -1780,10 +1780,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p4Text);
 
-  // P5 下桿半程 (Mid-Downswing) - 手軀夾角 (HackMotion 114°)
+  // P5 下桿半程 (Mid-Downswing) - 手軀夾角 (標準 114°)
   let p5Text = "";
   if (Math.abs(diffP5) <= 10) {
-    p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (與 HackMotion 114° 對齊良好)。下桿由下盤啟動沉手順暢，淺化路徑精準！`;
+    p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (與標準 114° 對齊良好)。下桿由下盤啟動沉手順暢，淺化路徑精準！`;
   } else if (diffP5 > 10) {
     p5Text = `P5 下桿半程：手軀夾角 ${userArm.P5}° (差 +${diffP5}°)。建議：雙手主動順勢沉降、右肘貼近腰側下拉，避免由外向內切球(OTT)。`;
   } else {
@@ -1791,10 +1791,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p5Text);
 
-  // P6 擊球前導 (Lag Delivery) - 手軀夾角 (HackMotion 41°)
+  // P6 擊球前導 (Lag Delivery) - 手軀夾角 (標準 41°)
   let p6Text = "";
   if (Math.abs(diffP6) <= 10) {
-    p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (與 HackMotion 41° 對齊良好)。手腕維持極佳滯後延遲(Lag)，蓄力飽滿！`;
+    p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (與標準 41° 對齊良好)。手腕維持極佳滯後延遲(Lag)，蓄力飽滿！`;
   } else if (diffP6 > 10) {
     p6Text = `P6 擊球前導：手軀夾角 ${userArm.P6}° (差 +${diffP6}°)。建議：雙手再向下沉壓至右大腿前，延遲翻腕釋放桿頭。`;
   } else {
@@ -1802,10 +1802,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p6Text);
 
-  // P7 擊球瞬間 (Impact) - 手軀夾角 (HackMotion 1°)
+  // P7 擊球瞬間 (Impact) - 手軀夾角 (標準 1°)
   let p7Text = "";
   if (Math.abs(diffP7) <= 10) {
-    p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (與 HackMotion 1° 對齊良好)。左手臂垂直貫穿擊球點，力量傳導極佳！`;
+    p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (與標準 1° 對齊良好)。左手臂垂直貫穿擊球點，力量傳導極佳！`;
   } else if (diffP7 > 10) {
     p7Text = `P7 擊球瞬間：手軀夾角 ${userArm.P7}° (差 +${diffP7}°)。建議：擊球瞬間左手臂完全向下打直貫穿球位，雙手壓過球前。`;
   } else {
@@ -1813,10 +1813,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p7Text);
 
-  // P8 送桿水平 (Follow-Through) - 手軀夾角 (HackMotion 28°)
+  // P8 送桿水平 (Follow-Through) - 手軀夾角 (標準 28°)
   let p8Text = "";
   if (Math.abs(diffP8) <= 10) {
-    p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (與 HackMotion 28° 對齊良好)。雙臂朝目標大圓弧送出，釋放延伸非常漂亮！`;
+    p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (與標準 28° 對齊良好)。雙臂朝目標大圓弧送出，釋放延伸非常漂亮！`;
   } else if (diffP8 < -10) {
     p8Text = `P8 送桿水平：手軀夾角 ${userArm.P8}° (差 ${diffP8}°)。建議：擊球後雙手完全向目標側高拋送出，不要太早縮手肘(雞翅膀)。`;
   } else {
@@ -1824,10 +1824,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p8Text);
 
-  // P9 送桿半程 (Mid-Exit) - 手軀夾角 (HackMotion 99°)
+  // P9 送桿半程 (Mid-Exit) - 手軀夾角 (標準 99°)
   let p9Text = "";
   if (Math.abs(diffP9) <= 10) {
-    p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (與 HackMotion 99° 對齊良好)。雙手順勢向上劃出漂亮出桿弧度！`;
+    p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (與標準 99° 對齊良好)。雙手順勢向上劃出漂亮出桿弧度！`;
   } else if (diffP9 < -10) {
     p9Text = `P9 送桿半程：手軀夾角 ${userArm.P9}° (差 ${diffP9}°)。建議：送桿時手腕順勢向上抬升繞過左肩，胸口完全轉向正前方。`;
   } else {
@@ -1835,10 +1835,10 @@ function compareWithPro(userMetrics, pro) {
   }
   phaseAdvice.push(p9Text);
 
-  // P10 收桿完成 (Finish) - 手軀夾角 (HackMotion 154°)
+  // P10 收桿完成 (Finish) - 手軀夾角 (標準 154°)
   let p10Text = "";
   if (Math.abs(diffP10) <= 10) {
-    p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (與 HackMotion 154° 對齊良好)。收桿手部位置優雅，重心完美踩穩左腳！`;
+    p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (與標準 154° 對齊良好)。收桿手部位置優雅，重心完美踩穩左腳！`;
   } else if (diffP10 < -10) {
     p10Text = `P10 收桿完成：手軀夾角 ${userArm.P10}° (差 ${diffP10}°)。建議：收桿時雙手完整繞至左耳旁，身體直立挺胸面對目標。`;
   } else {
