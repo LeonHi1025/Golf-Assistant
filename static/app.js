@@ -1898,6 +1898,7 @@ window.shareToLine = async function (isAuto = false) {
   // 1. 若在 LINE LIFF App 環境且初始化成功
   if (window.liff && isLiffInitialized) {
     if (liff.isLoggedIn() && liff.isInClient()) {
+      try {
         await liff.sendMessages([{ type: "text", text: triggerMsg }]);
         console.log("✅ LIFF sendMessages 成功發送觸發文字！");
         btnShareLine.innerText = "✅ 分析完成！正在跳轉至 LINE 查看診斷小卡...";
