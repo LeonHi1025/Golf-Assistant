@@ -1031,7 +1031,7 @@ async function handleVideoFile(file) {
   if (turnEl) turnEl.innerText = `${armAngles.P4}°`;
   
   document.getElementById("score-val").innerHTML = `${similarity}<span style="font-size: 18px; color: #71717A;">%</span>`;
-  document.getElementById("score-grade").innerText = `標準相似度 ${similarity}% (${similarity >= 88 ? '標準級對齊' : '進階微調建議'})`;
+  document.getElementById("score-grade").innerText = `標準相似度 ${similarity}% (${similarity >= 70 ? '標準級對齊' : '進階微調建議'})`;
 
   // 10. 產生【3 + 4 + 3】分組照片組（粗深紫色職業標準桿身 + 亮黃色學員桿身直覺對比）
   // 組 1（上揚）：P1 準備站姿, P2 起桿水平, P3 上桿半程 (3格)
@@ -1726,11 +1726,21 @@ function compareWithPro(userMetrics, pro) {
   const effP9 = Math.max(0, Math.abs(diffP9) - 10);
   const effP10 = Math.max(0, Math.abs(diffP10) - 10);
 
-  const totalEffDiff = effSpine + effP2 + effP3 + effP4 + effP5 + effP6 + effP7 + effP8 + effP9 + effP10;
-  const avgEffDiff = totalEffDiff / 10.0;
-
-  // 標準相似度指標 (忽略 +-10° 模型誤差後評分，75% ~ 99%)
-  const similarity = Math.max(75, Math.min(99, Math.round(98 - avgEffDiff * 1.5)));
+  // 相似度指標：P1~P10 一個黑字(良好對齊，偏差<=10°)佔 10%，3黑7紅即為 30%
+  const phaseGoodStatus = [
+    Math.abs(spineDiff) <= 10,
+    Math.abs(diffP2) <= 10,
+    Math.abs(diffP3) <= 10,
+    Math.abs(diffP4) <= 10,
+    Math.abs(diffP5) <= 10,
+    Math.abs(diffP6) <= 10,
+    Math.abs(diffP7) <= 10,
+    Math.abs(diffP8) <= 10,
+    Math.abs(diffP9) <= 10,
+    Math.abs(diffP10) <= 10
+  ];
+  const blackCount = phaseGoodStatus.filter(Boolean).length;
+  const similarity = blackCount * 10;
   const score = similarity;
 
   // P1 ~ P10 逐張詳細角度差異與直覺調整處方 (誤差 <= 10° 視為良好對齊)

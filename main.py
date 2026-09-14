@@ -327,6 +327,17 @@ def build_diagnosis_card(
     # 逐張 P1~P10 動作調整處方排版 (小標題加粗)
     if advice and len(advice) > 0:
         advice_contents = [format_advice_item(adv) for adv in advice]
+        # 相似度依據 P1~P10 一個黑字 10% 比率計算 (例如 3 黑 7 紅即為 30%)
+        black_count = 0
+        for item in advice_contents:
+            is_black = True
+            if "contents" in item and len(item["contents"]) > 0:
+                if item["contents"][0].get("color") == "#DC2626":
+                    is_black = False
+            if is_black:
+                black_count += 1
+        similarity = black_count * 10
+        score = similarity
     else:
         default_items = [
             "P1 站姿：保持脊椎側傾 5°，雙手自然垂直放鬆，重心穩定極佳。",
