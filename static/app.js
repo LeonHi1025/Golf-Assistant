@@ -32,18 +32,18 @@ const progressPct = document.getElementById("progress-pct");
 const resultSection = document.getElementById("result-section");
 const btnShareLine = document.getElementById("btn-share-line");
 
-// 1. 初始化系統 (LIFF + MediaPipe WebAssembly / GPU + HackMotion 職業基準庫)
+// 1. 初始化系統 (LIFF + MediaPipe WebAssembly / GPU + 國際職業基準庫)
 async function initSystem() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
   }
 
-  // 嘗試載入 HackMotion 國際標準基準 JSON (pro_benchmark.json)
+  // 嘗試載入國際標準基準 JSON (pro_benchmark.json)
   try {
-    const proRes = await fetch('pro_benchmark.json?v=20260910_hackmotion01');
+    const proRes = await fetch('pro_benchmark.json?v=20260914_pro_bench01');
     if (proRes.ok) {
       proBenchmark = await proRes.json();
-      console.log("🏆 HackMotion 國際標準基準數據庫已成功載入:", proBenchmark.pro_name);
+      console.log("🏆 國際標準基準數據庫已成功載入:", proBenchmark.pro_name);
     }
   } catch (pErr) {
     console.warn("載入 pro_benchmark.json 失敗，使用標準預設力學參數:", pErr);
@@ -996,7 +996,7 @@ async function handleVideoFile(file) {
     }
   });
 
-  // 9. HackMotion 黃金標準即時比對與口語化動作提示 (compareWithPro)
+  // 9. 國際標準即時比對與口語化動作提示 (compareWithPro)
   const spineAngle = calcSpineAngle(wristData[p1Idx]?.landmarks);
   const shoulderTurn = calcShoulderTurn(wristData[p1Idx]?.landmarks, wristData[p4Idx]?.landmarks);
   
@@ -1125,7 +1125,7 @@ function createCompositeSetImage(panels) {
       ctx.drawImage(p.frame, startX, 0, panelW, panelH);
     }
 
-    // 1. 繪製底層淡深紫色 HackMotion 職業標準骨架與【粗深紫色職業標準桿身】
+    // 1. 繪製底層淡深紫色國際標準骨架與【粗深紫色國際標準桿身】
     if (p.proLm) {
       drawGhostSkeleton(ctx, startX, 0, panelW, panelH, p.lm, p.proLm, p.phaseKey);
     }
@@ -1306,7 +1306,7 @@ async function uploadReportToServer(data) {
   return ret;
 }
 
-// 繪製淡深紫色 HackMotion 國際標準幽靈對比骨架 (Ghost Pro Skeleton)，與學員骨架完美合併疊加
+// 繪製淡深紫色國際標準幽靈對比骨架 (Ghost Pro Skeleton)，與學員骨架完美合併疊加
 export function drawGhostSkeleton(ctx, originX, originY, width, height, userLm, rawProLm, phaseKey) {
   if (!rawProLm) return;
   // 職業標準骨架使用基準標註座標，保持關節連線完整無損
@@ -1521,7 +1521,7 @@ function renderPoseToCanvas(canvasId, frameBitmap, landmarks, proLandmarks, phas
   // 1. 繪製背景影片幀
   ctx.drawImage(frameBitmap, 0, 0);
 
-  // 2. 繪製底層淡深紫色 HackMotion 職業標準骨架
+  // 2. 繪製底層淡深紫色國際標準骨架
   if (proLandmarks) {
     drawGhostSkeleton(ctx, 0, 0, canvas.width, canvas.height, landmarks, proLandmarks, phaseKey);
   }
@@ -1729,7 +1729,7 @@ function compareWithPro(userMetrics, pro) {
   const totalEffDiff = effSpine + effP2 + effP3 + effP4 + effP5 + effP6 + effP7 + effP8 + effP9 + effP10;
   const avgEffDiff = totalEffDiff / 10.0;
 
-  // HackMotion 相似度指標 (忽略 +-10° 模型誤差後評分，75% ~ 99%)
+  // 標準相似度指標 (忽略 +-10° 模型誤差後評分，75% ~ 99%)
   const similarity = Math.max(75, Math.min(99, Math.round(98 - avgEffDiff * 1.5)));
   const score = similarity;
 

@@ -7,7 +7,7 @@ import uuid
 from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -94,7 +94,7 @@ def get_config(request: Request):
 
 @app.post("/api/upload_report")
 async def upload_report(payload: ReportUploadPayload, request: Request):
-    """接收前端 Edge AI 產生的 1+3+3+3 骨架合成照片組與 HackMotion 十階段比對指標"""
+    """接收前端 Edge AI 產生的 1+3+3+3 骨架合成照片組與十階段標準比對指標"""
     global latest_global_report, latest_server_host
     
     # 紀錄最新伺服器網址供 LINE 圖片下載
@@ -151,7 +151,7 @@ async def upload_report(payload: ReportUploadPayload, request: Request):
         cleanup_old_reports()
 
         image_urls = [f"{latest_server_host}/static/reports/{fn}" for fn in filenames]
-        print(f"✅ 成功儲存 HackMotion 對比骨架組 ({len(filenames)}張): {image_urls} (使用者: {user_id or '匿名'})")
+        print(f"✅ 成功儲存十階段標準對比骨架組 ({len(filenames)}張): {image_urls} (使用者: {user_id or '匿名'})")
         return {
             "status": "ok",
             "reportId": report_id,
