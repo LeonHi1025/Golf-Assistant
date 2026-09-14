@@ -1726,21 +1726,33 @@ function compareWithPro(userMetrics, pro) {
   const effP9 = Math.max(0, Math.abs(diffP9) - 10);
   const effP10 = Math.max(0, Math.abs(diffP10) - 10);
 
-  // 相似度指標：P1~P10 一個黑字(良好對齊，偏差<=10°)佔 10%，3黑7紅即為 30%
-  const phaseGoodStatus = [
-    Math.abs(spineDiff) <= 10,
-    Math.abs(diffP2) <= 10,
-    Math.abs(diffP3) <= 10,
-    Math.abs(diffP4) <= 10,
-    Math.abs(diffP5) <= 10,
-    Math.abs(diffP6) <= 10,
-    Math.abs(diffP7) <= 10,
-    Math.abs(diffP8) <= 10,
-    Math.abs(diffP9) <= 10,
-    Math.abs(diffP10) <= 10
+  // 相似度指標計分規則：
+  // 1. 偏差 <= 10° (黑字，對齊良好)：給 10%
+  // 2. 偏差 10° ~ 20° (微幅偏差)：給 5%
+  // 3. 偏差 > 20° (明顯偏差)：給 0%
+  const phaseDiffs = [
+    Math.abs(spineDiff),
+    Math.abs(diffP2),
+    Math.abs(diffP3),
+    Math.abs(diffP4),
+    Math.abs(diffP5),
+    Math.abs(diffP6),
+    Math.abs(diffP7),
+    Math.abs(diffP8),
+    Math.abs(diffP9),
+    Math.abs(diffP10)
   ];
-  const blackCount = phaseGoodStatus.filter(Boolean).length;
-  const similarity = blackCount * 10;
+  let totalScore = 0;
+  for (const d of phaseDiffs) {
+    if (d <= 10) {
+      totalScore += 10;
+    } else if (d <= 20) {
+      totalScore += 5;
+    } else {
+      totalScore += 0;
+    }
+  }
+  const similarity = totalScore;
   const score = similarity;
 
   // P1 ~ P10 逐張詳細角度差異與直覺調整處方 (誤差 <= 10° 視為良好對齊)

@@ -326,17 +326,34 @@ def build_diagnosis_card(
     
     # 逐張 P1~P10 動作調整處方排版 (小標題加粗)
     if advice and len(advice) > 0:
-        advice_contents = [format_advice_item(adv) for adv in advice]
-        # 相似度依據 P1~P10 一個黑字 10% 比率計算 (例如 3 黑 7 紅即為 30%)
-        black_count = 0
-        for item in advice_contents:
-            is_black = True
-            if "contents" in item and len(item["contents"]) > 0:
-                if item["contents"][0].get("color") == "#DC2626":
-                    is_black = False
-            if is_black:
-                black_count += 1
-        similarity = black_count * 10
+        advice_contents = []
+        total_sim = 0
+        for adv in advice:
+            item = format_advice_item(adv)
+            advice_contents.append(item)
+            
+            # 相似度計分規則：
+            # 1. 偏差 <= 10° (黑字，對齊良好)：給 10%
+            # 2. 偏差 10° ~ 20° (微幅偏差)：給 5%
+            # 3. 偏差 > 20° (明顯偏差)：給 0%
+            m = re.search(r"\(差\s*([+-]?\d+)°\)", adv)
+            if m:
+                diff_deg = abs(int(m.group(1)))
+                if diff_deg <= 10:
+                    total_sim += 10
+                elif diff_deg <= 20:
+                    total_sim += 5
+                else:
+                    total_sim += 0
+            else:
+                # 若無標示差幾度，但為紅字警示則給 0%，黑字對齊良好給 10%
+                is_red = False
+                if "contents" in item and len(item["contents"]) > 0:
+                    if item["contents"][0].get("color") == "#DC2626":
+                        is_red = True
+                total_sim += 0 if is_red else 10
+
+        similarity = total_sim
         score = similarity
     else:
         default_items = [
