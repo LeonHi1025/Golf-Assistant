@@ -572,7 +572,7 @@
 
   <!-- 主視窗（即時相機 + 幽靈骨架 Canvas） -->
   <div id="viewport-container">
-    <video id="camera-feed" playsinline autoplay muted></video>
+    <video id="camera-feed" playsinline webkit-playsinline autoplay muted></video>
     <canvas id="ghost-canvas"></canvas>
 
     <div id="loading-box">
@@ -736,6 +736,7 @@
       loadingBox.style.display = "flex";
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
       }
 
       try {
@@ -759,12 +760,28 @@
 
         updateMirrorClass();
 
-        video.onloadedmetadata = () => {
-          video.play();
+        const onReady = async () => {
+          try {
+            await video.play();
+          } catch (pErr) {
+            console.warn("video.play() 播放提示:", pErr);
+          }
           loadingBox.style.display = "none";
           resizeCanvas();
           drawGhostOverlay();
         };
+
+        if (video.readyState >= 1 && video.videoWidth > 0) {
+          onReady();
+        } else {
+          video.onloadedmetadata = onReady;
+          // 容錯備援：防止特定瀏覽器重複賦值時不觸發 onloadedmetadata
+          setTimeout(() => {
+            if (loadingBox.style.display !== "none") {
+              onReady();
+            }
+          }, 600);
+        }
       } catch (err) {
         console.error("相機存取失敗:", err);
         loadingBox.innerHTML = `
@@ -1132,19 +1149,49 @@
       }
     });
 
-    // 彈窗按鈕事件監聽
-    document.getElementById("btn-close-modal").addEventListener("click", () => {
+    // 10. 智慧相機喚醒與防凍結防護 (解決 iOS / Android 儲存照片或系統分享後串流當掉問題)
+    async function resumeOrRestartCamera() {
+      try {
+        if (!currentStream || !video.srcObject) {
+          console.log("📷 無現存相機串流，重新請求相機啟動...");
+          await startCamera();
+          return;
+        }
+
+        const tracks = currentStream.getVideoTracks();
+        const isDead = tracks.length === 0 || tracks.some(t => t.readyState === "ended" || !t.enabled);
+        if (isDead) {
+          console.log("📷 相機軌道已結束或中斷，重新請求相機權限與串流...");
+          await startCamera();
+          return;
+        }
+
+        if (video.paused) {
+          console.log("📷 相機畫面處於暫停狀態，恢復播放...");
+          await video.play();
+        }
+        resizeCanvas();
+        drawGhostOverlay();
+      } catch (err) {
+        console.warn("⚠️ 自動恢復相機失敗，重新執行完整相機啟動流程:", err);
+        await startCamera();
+      }
+    }
+
+    // 關閉預覽彈窗並自動喚醒/恢復相機
+    const closeModalAndResume = async () => {
       document.getElementById("preview-modal").classList.add("hidden");
-    });
-    document.getElementById("modal-backdrop").addEventListener("click", () => {
-      document.getElementById("preview-modal").classList.add("hidden");
-    });
+      await resumeOrRestartCamera();
+    };
+
+    document.getElementById("btn-close-modal").addEventListener("click", closeModalAndResume);
+    document.getElementById("modal-backdrop").addEventListener("click", closeModalAndResume);
 
     // 📲 原生儲存 / 分享按鈕 (呼叫系統相簿分享面板)
     document.getElementById("btn-share-snapshot").addEventListener("click", async () => {
       const fileName = `Golf_AR_${currentPhaseKey}_${Date.now()}.jpg`;
-      if (currentSnapshotBlob && navigator.canShare) {
-        try {
+      try {
+        if (currentSnapshotBlob && navigator.canShare) {
           const file = new File([currentSnapshotBlob], fileName, { type: "image/jpeg" });
           if (navigator.canShare({ files: [file] })) {
             await navigator.share({
@@ -1154,14 +1201,17 @@
             });
             return;
           }
-        } catch (e) {
-          if (e.name !== "AbortError") {
-            console.warn("Web Share API 失敗:", e);
-          }
         }
+        // 不支援 Web Share API 時提示長按
+        alert("📱 請直接「長按上方圖片」並選擇「儲存影像」加入手機相簿！");
+      } catch (e) {
+        if (e.name !== "AbortError") {
+          console.warn("Web Share API 失敗:", e);
+        }
+      } finally {
+        // 無論分享完成、取消或異常，切回後皆確保喚醒相機
+        setTimeout(resumeOrRestartCamera, 300);
       }
-      // 不支援 Web Share API 時提示長按
-      alert("📱 請直接「長按上方圖片」並選擇「儲存影像」加入手機相簿！");
     });
 
     // ⬇️ 下載圖檔按鈕
@@ -1171,6 +1221,37 @@
       link.download = `Golf_AR_${currentPhaseKey}_${Date.now()}.jpg`;
       link.href = currentSnapshotDataUrl;
       link.click();
+      setTimeout(resumeOrRestartCamera, 300);
+    });
+
+    // 監聽頁面焦點與前台切換（解決 iOS / Android 從相簿或系統面板返回後畫面凍結）
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        console.log("📱 頁面回到前景，檢查相機狀態...");
+        resumeOrRestartCamera();
+      }
+    });
+    window.addEventListener("focus", () => {
+      resumeOrRestartCamera();
+    });
+    window.addEventListener("pageshow", () => {
+      resumeOrRestartCamera();
+    });
+
+    // 視訊被瀏覽器暫停時自動嘗試喚醒（排除彈窗開啟期間）
+    video.addEventListener("pause", () => {
+      const modal = document.getElementById("preview-modal");
+      const isModalOpen = modal && !modal.classList.contains("hidden");
+      if (!isModalOpen) {
+        setTimeout(resumeOrRestartCamera, 300);
+      }
+    });
+
+    // 點擊畫面若相機凍結可即刻喚醒
+    vContainer.addEventListener("click", () => {
+      if (video.paused || !currentStream || (currentStream && currentStream.getVideoTracks().some(t => t.readyState === "ended"))) {
+        resumeOrRestartCamera();
+      }
     });
 
     // 啟動流程
